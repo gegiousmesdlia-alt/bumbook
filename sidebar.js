@@ -37,19 +37,6 @@ async function loadSuggested() {
   } catch (e) {}
 }
 
-/* ══════════════════════════════════════════════
-   SIDEBAR: BUSINESS PULSE (AI)
-══════════════════════════════════════════════ */
-async function loadBizFeed() {
-  const container = $('bizFeedContainer'); if (!container) return;
-  container.innerHTML = '<div class="bizfeed-loading"><div class="spinner"></div> Loading…</div>';
-  try {
-    const raw = await callGroq({ system: `You are a business intelligence service. Generate exactly 4 short business news snippets about oil & gas, emerging markets, tech, real estate, or global finance. Each: 1-2 sentences, confident insider tone. Respond ONLY with raw JSON array, no markdown: [{"tag":"oil","text":"..."},{"tag":"investment","text":"..."},{"tag":"tech","text":"..."},{"tag":"market","text":"..."}]. Valid tags: oil, investment, tech, market`, user: 'Generate 4 fresh business intelligence snippets.', maxTokens: 800 });
-    const items = JSON.parse(raw.replace(/```json|```/g, '').trim());
-    container.innerHTML = items.map(item => `<div class="bizfeed-item"><div class="bizfeed-author">${claudeEngineerAvatarHTML('sm')}<div><div class="bizfeed-name">Claude Engineer <span style="color:var(--accent);font-size:0.72rem">✓</span></div><div class="bizfeed-time">@claudeengineer</div></div></div><span class="bizfeed-tag ${escapeHTML(item.tag)}">${escapeHTML(item.tag.toUpperCase())}</span><div class="bizfeed-text">${escapeHTML(item.text)}</div></div>`).join('');
-  } catch (err) { container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-dim);padding:8px">Could not load insights — add Groq key in Admin panel.</div>'; }
-}
-
 async function postClaudeEngineerToFeed() {
   try {
     const text = await callGroq({ system: `You are Claude Engineer, a business intelligence account on X Club. Write ONE sharp post (2-4 sentences) about something interesting in business, finance, tech, oil & gas, real estate, or emerging markets. Confident, analytical tone. No hashtags. No emojis. Respond with ONLY the post text.`, user: 'Write a sharp business post.', maxTokens: 512 });

@@ -193,7 +193,7 @@ async function onAuthChange(user) {
 // re-running auth/profile/global-init on every click.
 function onPageActivated(page, opts = {}) {
   if (currentUser) {
-    if (page === 'feed')          { renderFeed(); setTimeout(loadBizFeed, 1500); setTimeout(runScheduledPosts, 5000); }
+    if (page === 'feed')          { renderFeed(); setTimeout(runScheduledPosts, 5000); }
     if (page === 'discover')      renderDiscover();
     if (page === 'notifications') renderNotifications();
     if (page === 'messages')      renderConversations();

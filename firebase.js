@@ -22,7 +22,7 @@
 const FIREBASE_CONFIG = {
   apiKey:            'AIzaSyCd3gjcLJILFb4oizd9gJSbLFQhs46w54k',
   authDomain:        'bumbook.firebaseapp.com',
-  databaseURL:       'REPLACE_ME_WITH_REALTIME_DATABASE_URL',
+  databaseURL:       'https://bumbook-default-rtdb.firebaseio.com',
   projectId:         'bumbook',
   storageBucket:     'bumbook.firebasestorage.app',
   messagingSenderId: '599534793874',

@@ -129,11 +129,11 @@ async function sendPushNow(targetUid, title, body, url) {
 
 /* ── Nav bell button (desktop top-bar + mobile floating button) ────────── */
 function updatePushNavIcon() {
-  const state = isPushEnabled() ? '🔔' : '🔕';
-  const icon = document.getElementById('pushToggleIcon');
-  if (icon) icon.textContent = state;
-  const iconMobile = document.getElementById('pushToggleIconMobile');
-  if (iconMobile) iconMobile.textContent = state;
+  const on = isPushEnabled();
+  const dot = document.getElementById('pushToggleIcon');
+  if (dot) dot.classList.toggle('on', on);
+  const dotMobile = document.getElementById('pushToggleIconMobile');
+  if (dotMobile) dotMobile.classList.toggle('on', on);
 }
 
 async function togglePushFromNav() {

@@ -464,9 +464,9 @@ function shareProfile() {
   // full Open Graph meta tags so WhatsApp / iMessage / Discord show a
   // rich preview card (photo, followers, bio, "Follow X →" CTA).
   const url = window.location.origin + '/u/' + encodeURIComponent(handle);
-  const text = 'Follow ' + (currentProfile.displayName || 'me') + ' on X-Musk Financial Club';
+  const text = 'Follow ' + (currentProfile.displayName || 'me') + ' on Bum Book';
   if (navigator.share) {
-    navigator.share({ title: currentProfile.displayName + ' — X-Musk Financial Club', text, url }).catch(() => {});
+    navigator.share({ title: currentProfile.displayName + ' — Bum Book', text, url }).catch(() => {});
   } else {
     navigator.clipboard?.writeText(url).then(() => showToast('Profile link copied!')).catch(() => showToast('Link: ' + url));
   }
@@ -475,9 +475,9 @@ function shareProfile() {
 function shareUserProfile(uid, displayName, handle) {
   const slug = handle || uid;
   const url  = window.location.origin + '/u/' + encodeURIComponent(slug);
-  const text = 'Follow ' + (displayName || 'this member') + ' on X-Musk Financial Club';
+  const text = 'Follow ' + (displayName || 'this member') + ' on Bum Book';
   if (navigator.share) {
-    navigator.share({ title: (displayName || 'Member') + ' — X-Musk Financial Club', text, url }).catch(() => {});
+    navigator.share({ title: (displayName || 'Member') + ' — Bum Book', text, url }).catch(() => {});
   } else {
     navigator.clipboard?.writeText(url).then(() => showToast('Profile link copied!')).catch(() => showToast('Link: ' + url));
   }

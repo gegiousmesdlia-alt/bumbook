@@ -173,7 +173,7 @@ body.theme-light .spinner { border-color: rgba(0, 0, 0, 0.12); border-top-color:
 .nav-link .nav-icon svg { display:block; }
 .nav-link .nav-badge {
   margin-left: auto;
-  background: var(--accent); color: #fff;
+  background: var(--danger); color: #fff;
   font-size: 0.7rem; font-weight: 700;
   border-radius: 9999px; padding: 1px 6px;
   min-width: 18px; text-align: center;
@@ -587,7 +587,7 @@ body.theme-light .nav-link:hover { background: var(--bg-hover); }
 body.theme-light .nav-link.active { color: var(--text); }
 body.theme-light .mobile-nav { background: var(--bg); border-color: var(--border); }
 body.theme-light .mobile-nav-link { color: var(--text-dim); }
-body.theme-light .mobile-nav-link.active { color: var(--text); }
+body.theme-light .mobile-nav-link.active { color: var(--accent); }
 
 /* Feed tabs */
 body.theme-light .feed-tab { color: var(--text-dim); }
@@ -694,15 +694,15 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 .mobile-theme-fab:hover { background: var(--bg-hover); color: var(--accent); }
 
-/* Mobile floating push-notification toggle — same treatment as the theme
-   FAB above, since .nav-theme-btn (where the desktop version lives) is
-   hidden entirely on mobile. */
+/* Still used by admin.html's floating push toggle — admin.html doesn't
+   have the mobile-topbar the main app gained, since it's intentionally
+   excluded from the SPA merge (see BUMBOOK_FORK_STATUS.md). */
 .mobile-push-fab {
   display: none;
   position: fixed; bottom: 80px; right: 66px;
   width: 42px; height: 42px; border-radius: 50%;
   background: var(--bg-2); border: 1px solid var(--border);
-  color: var(--text); font-size: 1.1rem;
+  color: var(--text);
   align-items: center; justify-content: center;
   cursor: pointer; z-index: 190;
   box-shadow: 0 2px 12px rgba(0,0,0,0.25);
@@ -1239,15 +1239,65 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   transition: color 0.15s;
   position: relative;
 }
-.mobile-nav-link.active { color: var(--text); }
+.mobile-nav-link.active { color: var(--accent); }
 .mobile-nav-link .mnav-icon { font-size: 1.4rem; display:flex; align-items:center; justify-content:center; }
 .mobile-nav-link .mnav-icon svg { display:block; }
 .mobile-nav-badge {
   position: absolute; top: 2px; right: 8px;
-  background: var(--accent); color: #fff;
+  background: var(--danger); color: #fff;
   font-size: 0.6rem; font-weight: 700;
   border-radius: 9999px; padding: 1px 4px;
   min-width: 14px; text-align: center;
+}
+
+/* ══════════════════════════════════════════════
+   MOBILE TOP BAR (Facebook-style)
+══════════════════════════════════════════════ */
+.mobile-topbar {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 52px; z-index: 200;
+  align-items: center; justify-content: space-between;
+  padding: 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  transition: transform 0.25s ease;
+}
+.mobile-topbar.nav-hidden { transform: translateY(-100%); }
+.mtb-logo {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 1.25rem; font-weight: 800;
+  color: var(--accent);
+  cursor: pointer;
+}
+.mtb-actions { display: flex; align-items: center; gap: 4px; }
+.mtb-btn {
+  position: relative;
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-3); border: none;
+  color: var(--text); cursor: pointer;
+  transition: background 0.15s;
+}
+.mtb-btn:hover { background: var(--bg-hover); }
+
+/* Push-notification on/off indicator dot — same button on desktop nav and
+   mobile top bar, just a small status dot instead of a bell-shape swap */
+.nav-push-btn { position: relative; }
+.push-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-muted);
+  border: 2px solid var(--bg);
+}
+.mtb-btn .push-dot, .mobile-push-fab .push-dot { top: 2px; right: 2px; }
+.push-dot.on { background: var(--success); }
+
+@media (max-width: 768px) {
+  .mobile-topbar { display: flex; }
+  .main-content { padding-top: 52px; }
+  .mobile-nav { transition: transform 0.25s ease; }
+  .mobile-nav.nav-hidden { transform: translateY(100%); }
 }
 
 /* ══════════════════════════════════════════════
@@ -1560,131 +1610,6 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 
 /* ══════════════════════════════════════════════
-   BUSINESS / INVESTMENT POSTS
-══════════════════════════════════════════════ */
-.post-invest-card {
-  background: linear-gradient(135deg, rgba(29,155,240,0.08), rgba(0,186,124,0.06));
-  border: 1px solid rgba(29,155,240,0.25);
-  border-radius: var(--radius-sm);
-  padding: 14px;
-  margin-top: 10px;
-}
-.post-invest-header {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 10px;
-}
-.post-invest-badge {
-  background: linear-gradient(135deg, #1d9bf0, #00ba7c);
-  color: #fff;
-  font-size: 0.72rem; font-weight: 700;
-  padding: 3px 10px; border-radius: 9999px;
-  letter-spacing: 0.04em;
-}
-.post-invest-title { font-weight: 700; font-size: 0.97rem; }
-.post-invest-target {
-  font-size: 0.8rem; color: var(--text-dim);
-  margin-bottom: 10px;
-}
-.invest-progress-bar {
-  height: 6px;
-  background: var(--bg-3);
-  border-radius: 9999px;
-  margin-bottom: 8px;
-  overflow: hidden;
-}
-.invest-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #1d9bf0, #00ba7c);
-  border-radius: 9999px;
-  transition: width 0.5s ease;
-}
-.invest-stats {
-  display: flex; justify-content: space-between;
-  font-size: 0.82rem; color: var(--text-dim);
-  margin-bottom: 12px;
-}
-.invest-raised { font-weight: 700; color: var(--success); font-size: 1rem; }
-.invest-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.invest-btn {
-  flex: 1;
-  background: linear-gradient(135deg, #1d9bf0, #00ba7c);
-  color: #fff;
-  border-radius: 9999px;
-  padding: 10px 16px;
-  font-size: 0.88rem; font-weight: 700;
-  text-align: center;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.invest-btn:hover { opacity: 0.88; }
-.invest-manage-btn {
-  background: var(--bg-3);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  padding: 10px 16px;
-  font-size: 0.82rem; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.invest-manage-btn:hover { background: var(--bg-hover); }
-
-/* ══════════════════════════════════════════════
-   AI BUSINESS FEED (right sidebar)
-══════════════════════════════════════════════ */
-.bizfeed-card {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.bizfeed-item {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-}
-.bizfeed-item:last-child { border-bottom: none; }
-.bizfeed-author {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 6px;
-}
-.bizfeed-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.8rem; font-weight: 700; color: #fff;
-  flex-shrink: 0;
-}
-.bizfeed-name { font-size: 0.83rem; font-weight: 700; }
-.bizfeed-time { font-size: 0.73rem; color: var(--text-dim); }
-.bizfeed-text { font-size: 0.83rem; color: var(--text-dim); line-height: 1.45; }
-.bizfeed-tag {
-  display: inline-block;
-  font-size: 0.7rem; font-weight: 600;
-  padding: 2px 8px; border-radius: 9999px;
-  margin-bottom: 4px;
-}
-.bizfeed-tag.oil { background: rgba(255,165,0,0.15); color: #ffa500; }
-.bizfeed-tag.investment { background: rgba(0,186,124,0.15); color: var(--success); }
-.bizfeed-tag.tech { background: rgba(29,155,240,0.15); color: var(--accent); }
-.bizfeed-tag.market { background: rgba(244,33,46,0.15); color: var(--danger); }
-.bizfeed-refresh {
-  width: 100%; text-align: center;
-  font-size: 0.78rem; color: var(--accent);
-  cursor: pointer; padding: 8px;
-  border-top: 1px solid var(--border);
-  margin-top: 8px;
-  transition: background 0.15s;
-}
-.bizfeed-refresh:hover { background: var(--bg-hover); border-radius: 0 0 var(--radius) var(--radius); }
-.bizfeed-loading {
-  display: flex; align-items: center; justify-content: center;
-  gap: 8px; padding: 16px;
-  font-size: 0.83rem; color: var(--text-dim);
-}
-
-/* ══════════════════════════════════════════════
    FOLLOWERS PRIVACY TOGGLE
 ══════════════════════════════════════════════ */
 .privacy-toggle-row {
@@ -1717,33 +1642,6 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   pointer-events: none;
 }
 .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(20px); }
-
-/* ══════════════════════════════════════════════
-   INVEST MODAL
-══════════════════════════════════════════════ */
-.invest-modal-raised {
-  font-size: 2rem; font-weight: 800; color: var(--success);
-  text-align: center; margin: 12px 0 4px;
-}
-.invest-modal-target {
-  text-align: center; color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px;
-}
-.invest-amount-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px;
-}
-.invest-amount-btn {
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px;
-  text-align: center;
-  font-size: 0.88rem; font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.invest-amount-btn:hover, .invest-amount-btn.selected {
-  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
-}
 
 /* connection request banner on profile */
 .req-banner {
@@ -1797,7 +1695,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 #page-post-detail { padding-bottom: 70px; }
 
 /* ══════════════════════════════════════════════
-   PREMIUM LANDING PAGE — X-Musk Financial Club
+   PREMIUM LANDING PAGE — Bum Book
 ══════════════════════════════════════════════ */
 
 /* Fonts */
@@ -1842,8 +1740,8 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(212,175,55,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212,175,55,0.04) 1px, transparent 1px);
+    linear-gradient(rgba(29,155,240,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29,155,240,0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   animation: gridDrift 20s linear infinite;
 }
@@ -1862,13 +1760,13 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 .landing-bg-glow-1 {
   width: 600px; height: 600px;
-  background: radial-gradient(circle, #D4AF37, transparent 70%);
+  background: radial-gradient(circle, var(--accent), transparent 70%);
   top: -200px; right: -100px;
   animation-delay: 0s; animation-duration: 14s;
 }
 .landing-bg-glow-2 {
   width: 400px; height: 400px;
-  background: radial-gradient(circle, #b8860b, transparent 70%);
+  background: radial-gradient(circle, var(--accent-hover), transparent 70%);
   bottom: 0; left: -100px;
   animation-delay: -5s; animation-duration: 18s;
 }
@@ -1893,7 +1791,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 .landing-particle {
   position: absolute;
   width: 2px; height: 2px;
-  background: #D4AF37;
+  background: var(--accent);
   border-radius: 50%;
   opacity: 0;
   animation: particleFade var(--dur) ease-in-out infinite;
@@ -1925,12 +1823,12 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 .landing-topbar-icon {
   width: 32px; height: 32px;
-  background: linear-gradient(135deg, #D4AF37, #8B6914);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #000;
+  color: #fff;
   flex-shrink: 0;
 }
 .landing-topbar-name {
@@ -1946,8 +1844,8 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #000;
-  background: #D4AF37;
+  color: #fff;
+  background: var(--accent);
   border: none;
   border-radius: 6px;
   padding: 8px 18px;
@@ -1955,7 +1853,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   transition: all 0.2s;
 }
 .landing-topbar-signin:hover {
-  background: #F5D270;
+  background: var(--accent-hover);
   transform: translateY(-1px);
 }
 
@@ -1982,9 +1880,9 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: rgba(212,175,55,0.9);
-  background: rgba(212,175,55,0.06);
-  border: 1px solid rgba(212,175,55,0.2);
+  color: rgba(29,155,240,0.9);
+  background: rgba(29,155,240,0.06);
+  border: 1px solid rgba(29,155,240,0.2);
   border-radius: 9999px;
   padding: 6px 16px;
   margin-bottom: 32px;
@@ -1993,14 +1891,14 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 .landing-badge-dot {
   width: 5px; height: 5px;
-  background: #D4AF37;
+  background: var(--accent);
   border-radius: 50%;
-  box-shadow: 0 0 8px #D4AF37;
+  box-shadow: 0 0 8px var(--accent);
   animation: dotPulse 2s ease-in-out infinite;
 }
 @keyframes dotPulse {
-  0%,100% { box-shadow: 0 0 4px #D4AF37; }
-  50%      { box-shadow: 0 0 12px #D4AF37, 0 0 20px rgba(212,175,55,0.4); }
+  0%,100% { box-shadow: 0 0 4px var(--accent); }
+  50%      { box-shadow: 0 0 12px var(--accent), 0 0 20px rgba(29,155,240,0.4); }
 }
 
 /* Headline — new style */
@@ -2019,7 +1917,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   font-weight: 700;
   letter-spacing: 0.45em;
   text-transform: uppercase;
-  color: #D4AF37;
+  color: var(--accent);
 }
 .landing-headline-main {
   font-family: 'Cormorant Garamond', Georgia, serif;
@@ -2027,7 +1925,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   font-weight: 300;
   letter-spacing: -0.02em;
   line-height: 0.95;
-  background: linear-gradient(160deg, #ffffff 0%, #D4AF37 45%, #ffffff 75%, #9a7a1a 100%);
+  background: linear-gradient(160deg, #ffffff 0%, var(--accent) 45%, #ffffff 75%, var(--accent-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -2047,47 +1945,11 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   animation-delay: 0.3s;
 }
 .landing-tagline em {
-  color: rgba(212,175,55,0.9);
+  color: rgba(29,155,240,0.9);
   font-style: italic;
   display: block;
   font-size: 1.1em;
   margin-bottom: 4px;
-}
-
-/* Stats */
-.landing-stats {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin-top: 8px;
-  margin-bottom: 40px;
-  animation: fadeSlideUp 0.8s ease both;
-  animation-delay: 0.6s;
-}
-.landing-stat {
-  padding: 12px 24px;
-  text-align: center;
-}
-.landing-stat-num {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #D4AF37;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-.landing-stat-label {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
-}
-.landing-stat-divider {
-  width: 1px;
-  height: 32px;
-  background: rgba(212,175,55,0.12);
-  flex-shrink: 0;
 }
 
 /* CTAs */
@@ -2114,14 +1976,14 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #000;
-  background: linear-gradient(135deg, #D4AF37 0%, #F5D270 50%, #D4AF37 100%);
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
   background-size: 200% 100%;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 24px rgba(212,175,55,0.3), 0 0 0 0 rgba(212,175,55,0);
+  box-shadow: 0 4px 24px rgba(29,155,240,0.3), 0 0 0 0 rgba(29,155,240,0);
   position: relative;
   overflow: hidden;
 }
@@ -2136,7 +1998,7 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 .landing-cta-primary:hover::before { transform: translateX(100%); }
 .landing-cta-primary:hover {
   background-position: 100% 0;
-  box-shadow: 0 6px 32px rgba(212,175,55,0.5), 0 0 0 3px rgba(212,175,55,0.15);
+  box-shadow: 0 6px 32px rgba(29,155,240,0.5), 0 0 0 3px rgba(29,155,240,0.15);
   transform: translateY(-1px);
 }
 .landing-cta-primary:active { transform: translateY(0); }
@@ -2152,9 +2014,9 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   transition: color 0.2s;
   letter-spacing: 0.02em;
 }
-.landing-cta-secondary strong { color: rgba(212,175,55,0.8); font-weight: 600; }
+.landing-cta-secondary strong { color: rgba(29,155,240,0.8); font-weight: 600; }
 .landing-cta-secondary:hover { color: rgba(255,255,255,0.8); }
-.landing-cta-secondary:hover strong { color: #D4AF37; }
+.landing-cta-secondary:hover strong { color: var(--accent); }
 
 .landing-cta-install {
   display: flex;
@@ -2200,9 +2062,9 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 .landing-feature:hover {
   color: rgba(255,255,255,0.65);
-  border-color: rgba(212,175,55,0.2);
+  border-color: rgba(29,155,240,0.2);
 }
-.landing-feature svg { color: #D4AF37; flex-shrink: 0; }
+.landing-feature svg { color: var(--accent); flex-shrink: 0; }
 
 /* Footer */
 .landing-footer {
@@ -2216,11 +2078,11 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   letter-spacing: 0.04em;
 }
 .landing-footer a {
-  color: rgba(212,175,55,0.5);
+  color: rgba(29,155,240,0.5);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.landing-footer a:hover { color: #D4AF37; }
+.landing-footer a:hover { color: var(--accent); }
 
 /* Shared entrance animation */
 @keyframes fadeSlideUp {
@@ -2230,13 +2092,11 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 
 /* ── Auth pages — branding update ── */
 .auth-logo {
-  color: #D4AF37;
+  color: var(--accent);
 }
 
 /* ── Mobile adjustments for landing ── */
 @media (max-width: 480px) {
-  .landing-stat { padding: 14px 16px; }
-  .landing-stat-num { font-size: 1.1rem; }
   .landing-topbar { padding: 14px 18px; }
   .landing-topbar-name { display: none; }
   .landing-hero { padding: 32px 20px 24px; }

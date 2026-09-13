@@ -7,10 +7,10 @@
 
 const https = require('https');
 
-const FIREBASE_DB_URL = 'https://x-club-413fa-default-rtdb.europe-west1.firebasedatabase.app';
-const FS_PROJECT_ID   = 'x-club-413fa';
-const SITE_NAME       = 'X-Musk Financial Club';
-const SITE_TAGLINE    = 'The Ultra-Premium Investor Network';
+const FIREBASE_DB_URL = 'https://bumbook-default-rtdb.firebaseio.com';
+const FS_PROJECT_ID   = 'bumbook';
+const SITE_NAME       = 'Bum Book';
+const SITE_TAGLINE    = 'Bum Book';
 
 // Fetch JSON from Firebase REST API (no auth needed for public read rules)
 function fbGet(path) {
@@ -207,7 +207,6 @@ module.exports = async (req, res) => {
 
   <!-- ── Twitter / X Card ── -->
   <meta name="twitter:card"        content="summary">
-  <meta name="twitter:site"        content="@XMuskClub">
   <meta name="twitter:title"       content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
   <meta name="twitter:image"       content="${escapeHtml(ogImage)}">

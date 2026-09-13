@@ -19,6 +19,5 @@ let feedTab = 'for-you';
 let activeConvUid = null;
 let msgUnsubscribe = null;
 let _postDateMode = 'now';
-let selectedInvestAmount = 0;
 let isAdmin = false;
 let allUsersCache = [];

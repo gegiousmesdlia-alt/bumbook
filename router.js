@@ -100,3 +100,41 @@ function updateNavActive() {
     l.classList.toggle('active', match);
   });
 }
+
+/* Mobile scroll-hide: scrolling down (reading further into a page) hides
+   the top bar + bottom nav for a fuller screen; scrolling up brings them
+   back immediately. Small DOWN_THRESHOLD avoids hiding on tiny scroll
+   jitter (e.g. iOS rubber-banding). */
+(function initNavScrollHide() {
+  const topbar = document.querySelector('.mobile-topbar');
+  const bottomNav = document.querySelector('.mobile-nav');
+  if (!topbar || !bottomNav) return;
+
+  let lastY = window.scrollY;
+  const DOWN_THRESHOLD = 8;
+  let ticking = false;
+
+  function onScroll() {
+    const y = window.scrollY;
+    const delta = y - lastY;
+    if (y <= 0) {
+      topbar.classList.remove('nav-hidden');
+      bottomNav.classList.remove('nav-hidden');
+    } else if (delta > DOWN_THRESHOLD) {
+      topbar.classList.add('nav-hidden');
+      bottomNav.classList.add('nav-hidden');
+    } else if (delta < -DOWN_THRESHOLD) {
+      topbar.classList.remove('nav-hidden');
+      bottomNav.classList.remove('nav-hidden');
+    }
+    lastY = y;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(onScroll);
+      ticking = true;
+    }
+  }, { passive: true });
+})();

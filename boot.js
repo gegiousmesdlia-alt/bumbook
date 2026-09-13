@@ -41,7 +41,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       clearTimeout(loaderFailsafe);
       onAuthChange(user);
     });
-    if (typeof loadBizFeed === 'function') setTimeout(loadBizFeed, 3000);
   } catch (err) {
     clearTimeout(loaderFailsafe);
     console.error('Firebase failed:', err);

@@ -112,7 +112,7 @@ window.addEventListener('beforeinstallprompt', e => {
 window.addEventListener('appinstalled', () => {
   _deferredInstall = null;
   const b = $('pwaInstallBtn'); if (b) b.style.display = 'none';
-  showToast('X-Musk Financial Club installed!');
+  showToast('Bum Book installed!');
 });
 function triggerPwaInstall() {
   if (!_deferredInstall) { showToast('Open in your browser to install'); return; }

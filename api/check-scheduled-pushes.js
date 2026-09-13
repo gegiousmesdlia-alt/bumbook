@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
       for (const subDoc of subsSnap.docs) {
         try {
           await webpush.sendNotification(subDoc.data().subscription, JSON.stringify({
-            title: item.title || 'X-Musk Financial Club',
+            title: item.title || 'Bum Book',
             body: item.body || '',
             url: item.url || '/',
           }));

@@ -232,24 +232,6 @@ async function submitPost() {
   finally { btn.disabled = false; btn.textContent = 'Post'; }
 }
 
-async function _submitBusinessPost() {
-  const text = $('postText').value.trim(), bizTitle = $('bizTitle').value.trim();
-  const bizTarget = parseFloat($('bizTarget').value), bizSector = $('bizSector').value.trim();
-  if (!text) return showToast('Describe your business opportunity');
-  if (!bizTitle) return showToast('Enter a business title');
-  if (!bizTarget || bizTarget <= 0) return showToast('Enter a valid funding target');
-  const btn = $('postSubmitBtn'); btn.disabled = true; btn.textContent = 'Posting…';
-  try {
-    await window.XF.push('posts', { authorUid: currentUser.uid, text, type: 'business', bizTitle, bizTarget, bizSector, bizCurrency: $('bizCurrency')?.value || 'EUR', bizEmail: $('bizEmail')?.value.trim() || '', bizRaised: 0, investorCount: 0, createdAt: Date.now(), commentCount: 0 });
-    await window.XF.update('users/' + currentUser.uid, { postsCount: (currentProfile.postsCount || 0) + 1 });
-    currentProfile.postsCount = (currentProfile.postsCount || 0) + 1;
-    $('postText').value = ''; $('bizTitle').value = ''; $('bizTarget').value = ''; $('bizSector').value = '';
-    if ($('bizEmail')) $('bizEmail').value = '';
-    togglePostType('post'); showToast('Business post published!'); renderFeed();
-  } catch (err) { showToast('Failed to post'); }
-  finally { btn.disabled = false; btn.textContent = 'Post'; }
-}
-
 async function deletePost(postId) {
   if (!confirm('Delete this post?')) return;
   try {
