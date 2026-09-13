@@ -10,6 +10,7 @@ async function handleLogin(e) {
     await window.XF.signIn($('loginEmail').value.trim(), $('loginPass').value);
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+    console.error('[login]', err);
     showToast(friendlyError(err.code));
   }
 }
@@ -31,6 +32,7 @@ async function handleRegister(e) {
     await window.XF.set('handles/' + handle, cred.user.uid);
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Create account'; }
+    console.error('[register]', err);
     showToast(friendlyError(err.code));
   }
 }
@@ -44,7 +46,7 @@ async function handleGoogleAuth() {
       await window.XF.set('users/' + cred.user.uid, { uid: cred.user.uid, displayName: cred.user.displayName || 'Member', handle, email: cred.user.email || '', bio: '', photoURL: cred.user.photoURL || '', verified: false, followersCount: 0, followingCount: 0, postsCount: 0, joinedAt: window.XF.ts() });
       await window.XF.set('handles/' + handle, cred.user.uid);
     }
-  } catch (err) { showToast(friendlyError(err.code)); }
+  } catch (err) { console.error('[google auth]', err); showToast(friendlyError(err.code)); }
 }
 
 async function handleLogout() {
@@ -61,8 +63,10 @@ function friendlyError(code) {
     'auth/weak-password': 'Password is too weak',
     'auth/invalid-email': 'Invalid email address',
     'auth/popup-closed-by-user': 'Sign-in was cancelled',
-    'auth/network-request-failed': 'Network error — check your connection'
-  }[code]) || 'Something went wrong. Please try again.';
+    'auth/network-request-failed': 'Network error — check your connection',
+    'auth/operation-not-allowed': 'Email/password sign-in is not enabled for this project',
+    'permission-denied': 'Permission denied — check Firestore security rules are published'
+  }[code]) || ('Something went wrong' + (code ? ' (' + code + ')' : '') + '. Please try again.');
 }
 
 /* ══════════════════════════════════════════════

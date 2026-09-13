@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Montserrat:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="manifest" href="manifest.json">
   <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e)); }); }</script>
 
@@ -30,7 +31,7 @@
 <div id="app">
   <nav class="left-nav">
     <div class="nav-logo" onclick="showPage('feed')" title="Bum Book">
-      <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 4L12 12M12 12L20 4M12 12L4 20M12 12L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <img class="brand-logo-img brand-logo-nav" src="assets/logo.png" alt="Bum Book">
     </div>
     <div class="nav-links">
       <div class="nav-link" data-page="feed" onclick="showPage('feed')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home</span></div>
