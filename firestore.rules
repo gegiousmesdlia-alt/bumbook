@@ -1,0 +1,163 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ── Helpers ─────────────────────────────────────────────────────── */
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      // Matches the app's client-side admin check (config.js: ADMIN_EMAIL)
+      return signedIn() && request.auth.token.email == 'admin@gmail.com';
+    }
+
+    /* ── users/{uid} ─────────────────────────────────────────────────── */
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if isSelf(uid) || isAdmin();
+      allow update, delete: if isSelf(uid) || isAdmin();
+
+      // A user's own connections — but BOTH sides of a connection get a
+      // doc written when a request is accepted (mutual), so either the
+      // owner of this subtree OR the other party (matching the doc id)
+      // may write.
+      match /connections/{otherUid} {
+        allow read: if signedIn();
+        allow write: if isSelf(uid) || isSelf(otherUid) || isAdmin();
+      }
+
+      // Blocks are private — only the owner manages their own block list.
+      match /blocks/{blockedUid} {
+        allow read: if isSelf(uid) || isAdmin();
+        allow write: if isSelf(uid) || isAdmin();
+      }
+
+      // A message request is written by the SENDER into the RECIPIENT's
+      // subtree (messageRequests/{toUid}/{fromUid}), so the sender needs
+      // create access to someone else's subcollection; the recipient
+      // manages (accepts/declines/deletes) their own inbox.
+      match /messageRequests/{fromUid} {
+        allow read: if isSelf(uid) || isAdmin();
+        allow create: if isSelf(fromUid);
+        allow update, delete: if isSelf(uid) || isSelf(fromUid) || isAdmin();
+      }
+
+      // Notifications are written by OTHER users into this user's inbox
+      // (e.g. "so-and-so sent a connection request"). Only the owner
+      // reads/manages their own inbox.
+      match /notifications/{notifId} {
+        allow read, update, delete: if isSelf(uid) || isAdmin();
+        allow create: if signedIn();
+      }
+
+      // Profile views — any signed-in visitor logs a view of your
+      // profile; only you (the profile owner) can see who viewed it.
+      match /profileViews/{viewerUid} {
+        allow read: if isSelf(uid) || isAdmin();
+        allow write: if isSelf(viewerUid);
+      }
+    }
+
+    /* ── handles/{handle} ── uid-lookup docs, must be publicly readable
+       because availability is checked BEFORE the user is signed in
+       (during registration). ──────────────────────────────────────── */
+    match /handles/{handle} {
+      allow read: if true;
+      // Value is { value: uid } after the primitive-wrap fix in firebase.js.
+      allow create: if signedIn() && request.resource.data.value == request.auth.uid;
+      allow update: if signedIn() && request.resource.data.value == request.auth.uid;
+      allow delete: if signedIn() && resource.data.value == request.auth.uid;
+    }
+
+    /* ── posts/{postId} ──────────────────────────────────────────────── */
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.authorUid == request.auth.uid;
+      allow update: if signedIn(); // covers likes/rsvps/investment-count bumps by other users, and business-post updates
+      allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == request.auth.uid);
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if signedIn() && request.resource.data.authorUid == request.auth.uid;
+        allow delete: if isAdmin() ||
+          (signedIn() && resource.data.authorUid == request.auth.uid) ||
+          (signedIn() && get(/databases/$(database)/documents/posts/$(postId)).data.authorUid == request.auth.uid);
+        allow update: if false; // comments aren't edited in this app
+      }
+
+    }
+
+    match /verificationRequests/{uid} {
+      allow read, create, update: if isSelf(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ── conversations/{convId}/messages/{msgId} ── DMs.
+       convId is "<uidA>_<uidB>" sorted — only the two participants
+       may access it. ─────────────────────────────────────────────── */
+    match /conversations/{convId}/messages/{msgId} {
+      allow read: if signedIn() && convId.split('_').hasAny([request.auth.uid]);
+      allow create: if signedIn() &&
+        convId.split('_').hasAny([request.auth.uid]) &&
+        request.resource.data.senderUid == request.auth.uid;
+      // Updates cover read receipts / delivery flags / reactions from
+      // EITHER participant, and deletes are sender or admin only.
+      allow update: if signedIn() && convId.split('_').hasAny([request.auth.uid]);
+      allow delete: if isAdmin() ||
+        (signedIn() && resource.data.senderUid == request.auth.uid);
+    }
+
+    /* ── connectionRequests/{reqId} ── reqId is "<fromUid>_<toUid>" ──── */
+    match /connectionRequests/{reqId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.from == request.auth.uid;
+      allow update: if signedIn() &&
+        (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow delete: if isAdmin() ||
+        (signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid));
+    }
+
+    /* ── scheduledPosts/{id} ── author-only, used by the composer's
+       schedule feature. ──────────────────────────────────────────── */
+    match /scheduledPosts/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.authorUid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.authorUid == request.auth.uid;
+      allow update, delete: if isAdmin() || (signedIn() && resource.data.authorUid == request.auth.uid);
+    }
+
+    /* ── pushSubscriptions/{id} & scheduledPushes/{id} ── written by the
+       client (self-serve, like any other user data). The actual SENDING
+       happens server-side via the Firebase Admin SDK (api/check-scheduled-
+       pushes.js), which authenticates with a service account and bypasses
+       these rules entirely — so they stay locked to the owning user only,
+       nothing needs to be public here. ─────────────────────────────────── */
+    match /pushSubscriptions/{id} {
+      allow read, delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+
+    match /scheduledPushes/{id} {
+      // subscriptionId isn't verifiable against auth.uid here without an
+      // extra read, so this is intentionally permissive on read for the
+      // owning session's own bookkeeping; the sensitive step (actually
+      // sending) never goes through these rules at all.
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if false; // only the server (Admin SDK) marks these sent
+    }
+
+    /* ── settings/{appConfig|config} ── app-wide singletons.
+       Publicly readable (membership price, groq key usage flags, etc.
+       are read before/without a full profile in some flows); only the
+       admin account may write. ──────────────────────────────────────── */
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

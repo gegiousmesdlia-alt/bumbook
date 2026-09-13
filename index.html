@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Bum Book</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Bum Book — connect, share, and chat with people who matter to you.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Montserrat:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+<div id="appLoader">
+  <div class="loader-brand">
+    <div class="loader-brand-x">✕</div>
+    <div class="loader-brand-divider"><span class="loader-brand-line"></span><span class="loader-brand-diamond">◆</span><span class="loader-brand-line"></span></div>
+    <div class="loader-brand-name">Bum Book</div>
+    <div class="loader-brand-tagline">Connect. Share. Chat.</div>
+    <div class="loader-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+<div id="toastContainer"></div>
+
+<div class="page active" id="page-landing">
+      <div class="landing-bg">
+        <div class="landing-bg-grid"></div>
+        <div class="landing-bg-glow landing-bg-glow-1"></div>
+        <div class="landing-bg-glow landing-bg-glow-2"></div>
+        <div class="landing-bg-glow landing-bg-glow-3"></div>
+        <div class="landing-particles" id="landingParticles"></div>
+      </div>
+      <div class="landing-topbar">
+        <div class="landing-topbar-logo">
+          <div class="landing-topbar-icon"><svg viewBox="0 0 48 48" fill="none" width="18" height="18"><path d="M8 8L24 24M24 24L40 8M24 24L8 40M24 24L40 40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg></div>
+          <span class="landing-topbar-name">X-Musk Financial Club</span>
+        </div>
+        <button class="landing-topbar-signin" onclick="showPage('login')">Sign in</button>
+      </div>
+      <div class="landing-hero">
+        <div class="landing-badge"><span class="landing-badge-dot"></span><span>Verified Members Only · Est. 2024</span></div>
+
+        <h1 class="landing-headline">
+          <span class="landing-headline-eyebrow">X-Musk</span>
+          <span class="landing-headline-main">Financial<br>Club</span>
+        </h1>
+
+        <p class="landing-tagline"><em>Where capital meets conviction.</em><br>A private network for the world's serious investors.</p>
+
+        <div class="landing-ctas">
+          <button class="landing-cta-primary" onclick="showPage('register')"><span>Apply for Membership</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+          <button class="landing-cta-secondary" onclick="showPage('login')">Already a member? <strong>Sign in →</strong></button>
+          <button id="pwaInstallBtn" class="landing-cta-install" onclick="triggerPwaInstall()" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Add to Home Screen</button>
+        </div>
+
+        <div class="landing-stats">
+          <div class="landing-stat"><div class="landing-stat-num">€1.2B+</div><div class="landing-stat-label">Capital Deployed</div></div>
+          <div class="landing-stat-divider"></div>
+          <div class="landing-stat"><div class="landing-stat-num">3,400+</div><div class="landing-stat-label">Verified Members</div></div>
+          <div class="landing-stat-divider"></div>
+          <div class="landing-stat"><div class="landing-stat-num">47</div><div class="landing-stat-label">Countries</div></div>
+        </div>
+
+        <div class="landing-features">
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Private Investor Network</div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live Deal Rooms</div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>AI Business Intelligence</div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Verified Identity Only</div>
+        </div>
+      </div>
+      <div class="landing-footer"><p>By joining you agree to the <a href="#" onclick="return false">Terms of Service</a> and <a href="#" onclick="return false">Privacy Policy</a></p></div>
+    </div>
+<div class="page" id="page-login">
+      <div class="auth-page">
+        <div class="auth-card">
+          <div class="auth-logo"><svg viewBox="0 0 24 24" fill="none" width="32" height="32"><path d="M4 4L12 12M12 12L20 4M12 12L4 20M12 12L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></div>
+          <div class="auth-title">Sign in to X-Musk Financial Club</div>
+          <form onsubmit="handleLogin(event)">
+            <div class="form-group"><label class="form-label">Email</label><input id="loginEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
+            <div class="form-group"><label class="form-label">Password</label><input id="loginPass" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+            <button id="loginBtn" class="btn btn-primary btn-block" type="submit">Sign in</button>
+          </form>
+          <div class="divider">or</div>
+          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>Continue with Google</button>
+          <div class="auth-footer">Don't have an account? <a onclick="showPage('register')">Sign up</a></div>
+          <div class="auth-footer" style="margin-top:8px"><a onclick="showPage('reset')" style="color:var(--text-dim)">Forgot password?</a></div>
+        </div>
+      </div>
+    </div>
+<div class="page" id="page-register">
+      <div class="auth-page">
+        <div class="auth-card">
+          <div class="auth-logo"><svg viewBox="0 0 24 24" fill="none" width="32" height="32"><path d="M4 4L12 12M12 12L20 4M12 12L4 20M12 12L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></div>
+          <div class="auth-title">Join X-Musk Financial Club</div>
+          <div class="auth-sub">Create your account — free to join, verify to unlock everything</div>
+          <form onsubmit="handleRegister(event)">
+            <div class="form-group"><label class="form-label">Full Name</label><input id="regName" class="form-input" type="text" placeholder="Alexandra Smith" autocomplete="name"></div>
+            <div class="form-group"><label class="form-label">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="regHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="username"></div></div>
+            <div class="form-group"><label class="form-label">Email</label><input id="regEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
+            <div class="form-group"><label class="form-label">Password</label><input id="regPass" class="form-input" type="password" placeholder="Min. 8 characters" autocomplete="new-password"></div>
+            <button id="regBtn" class="btn btn-primary btn-block" type="submit">Create account</button>
+          </form>
+          <div class="divider">or</div>
+          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>Continue with Google</button>
+          <div class="auth-footer">Already a member? <a onclick="showPage('login')">Sign in</a></div>
+        </div>
+      </div>
+    </div>
+<div class="page" id="page-reset">
+      <div class="auth-page">
+        <div class="auth-card">
+          <div class="auth-logo"><svg viewBox="0 0 24 24" fill="none" width="32" height="32"><path d="M4 4L12 12M12 12L20 4M12 12L4 20M12 12L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></div>
+          <div class="auth-title">Reset password</div>
+          <div class="auth-sub">Enter your email and we'll send you a reset link</div>
+          <div class="form-group"><label class="form-label">Email</label><input id="resetEmail" class="form-input" type="email" placeholder="you@example.com"></div>
+          <button class="btn btn-primary btn-block" onclick="sendReset()">Send reset link</button>
+          <div class="auth-footer" style="margin-top:16px"><a onclick="showPage('login')">← Back to sign in</a></div>
+        </div>
+      </div>
+    </div>
+
+<div id="app" style="display:none">
+<nav class="left-nav">
+    <div class="nav-logo" onclick="showPage('feed')" title="X-Musk Financial Club">
+      <svg viewBox="0 0 24 24" fill="none" width="22" height="22"><path d="M4 4L12 12M12 12L20 4M12 12L4 20M12 12L20 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    </div>
+    <div class="nav-links">
+      <div class="nav-link" data-page="feed" onclick="showPage('feed')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home</span></div>
+      <div class="nav-link" data-page="discover" onclick="showPage('discover')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Discover</span></div>
+      <div class="nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Notifications</span><span class="nav-badge" id="navNotifBadge" style="display:none">0</span></div>
+      <div class="nav-link" data-page="messages" onclick="showPage('messages')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span>Messages</span><span class="nav-badge" id="navMsgBadge" style="display:none">0</span></div>
+      <div class="nav-link" data-page="profile" onclick="showPage('profile')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>Profile</span></div>
+    </div>
+    <button class="nav-post-btn" onclick="openPostModal()"><span>Post</span></button>
+    <button class="nav-theme-btn" id="navPushBtn" onclick="togglePushFromNav()" title="Notifications"><span id="pushToggleIcon">🔕</span></button>
+    <button class="nav-theme-btn" onclick="toggleTheme()" title="Toggle theme"><span id="themeToggleIcon">☀</span></button>
+    <div class="nav-user" id="navUserWrap" style="display:none" onclick="showPage('profile')">
+      <div class="avatar avatar-md" id="navUserAvatar"></div>
+      <div class="nav-user-info"><div class="nav-user-name" id="navUserName"></div><div class="nav-user-handle" id="navUserHandle"></div></div>
+      <div style="color:var(--text-dim);font-size:0.9rem">···</div>
+    </div>
+  </nav>
+  <main class="main-content">
+<div class="page active" id="page-feed">
+      <div class="feed-tabs"><div class="feed-tab active">For you</div></div>
+      <div class="composer" id="feedComposer">
+        <div id="composerAvatar"></div>
+        <div class="composer-body">
+          <textarea id="postText" placeholder="What's happening?" rows="3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';debouncedComposerPreview(this.value,'postLinkPreview')"></textarea>
+          <div id="postLinkPreview"></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button id="postTypePost" class="btn btn-outline btn-sm active" onclick="togglePostType('post')" style="font-size:0.78rem">✎ Post</button>
+            <button id="postTypeEvent" class="btn btn-outline btn-sm" onclick="togglePostType('event')" style="font-size:0.78rem">◷ Event</button>
+            <button id="postTypeBusiness" class="btn btn-outline btn-sm" onclick="togglePostType('business')" style="font-size:0.78rem">$ Business</button>
+          </div>
+          <div id="eventFields" style="display:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px">
+            <div class="form-group" style="margin-bottom:10px"><input id="eventTitle" class="form-input" placeholder="Event title" style="font-size:0.88rem"></div>
+            <div style="display:flex;gap:8px;margin-bottom:10px"><input id="eventDate" class="form-input" type="date" style="flex:1;font-size:0.85rem"><input id="eventTime" class="form-input" type="time" style="flex:1;font-size:0.85rem"></div>
+            <div class="form-group" style="margin-bottom:10px"><input id="eventLocation" class="form-input" placeholder="Location (optional)" style="font-size:0.88rem"></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer"><input id="eventPrivate" type="checkbox"> Private event (verified members only)</label>
+          </div>
+          <div id="businessFields" style="display:none;border:1px solid rgba(29,155,240,0.3);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;background:rgba(29,155,240,0.04)">
+            <div class="form-group" style="margin-bottom:10px"><input id="bizTitle" class="form-input" placeholder="Business / Investment title" style="font-size:0.88rem"></div>
+            <div style="display:flex;gap:8px;margin-bottom:10px"><select id="bizCurrency" class="form-input" style="font-size:0.85rem;flex:0 0 110px"><option value="NGN">NGN — ₦</option><option value="USD">USD — $</option><option value="GBP">GBP — £</option><option value="EUR" selected>EUR — €</option><option value="GHS">GHS — ₵</option><option value="KES">KES — KSh</option><option value="ZAR">ZAR — R</option></select><input id="bizTarget" class="form-input" type="number" placeholder="Funding target" style="font-size:0.88rem;flex:1" min="1"></div>
+            <div class="form-group" style="margin-bottom:10px"><input id="bizSector" class="form-input" placeholder="Sector (e.g. Tech, Real Estate)" style="font-size:0.88rem"></div>
+            <div class="form-group" style="margin-bottom:0"><input id="bizEmail" class="form-input" type="email" placeholder="Your email (Flutterwave payments go here)" style="font-size:0.83rem"></div>
+          </div>
+          <div id="postImagePreview"></div>
+          <div style="margin-bottom:8px">
+            <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+              <button id="optNow" class="btn btn-outline btn-sm active" onclick="setPostDateMode('now')" style="font-size:0.74rem;padding:4px 10px">Now</button>
+              <button id="optBackdate" class="btn btn-outline btn-sm" onclick="setPostDateMode('backdate')" style="font-size:0.74rem;padding:4px 10px">◁ Backdate</button>
+              <button id="optSchedule" class="btn btn-outline btn-sm" onclick="setPostDateMode('schedule')" style="font-size:0.74rem;padding:4px 10px">◷ Schedule</button>
+            </div>
+            <div id="postDateRow" style="display:none"><input id="postCustomDate" class="form-input" type="datetime-local" style="font-size:0.83rem;width:100%"><div id="postDateHint" style="font-size:0.73rem;color:var(--text-dim);margin-top:4px"></div></div>
+          </div>
+          <div class="composer-actions">
+            <label class="composer-tool" title="Add image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><input id="postImageInput" type="file" accept="image/*" style="display:none" onchange="previewPostImage(this)"></label>
+            <button id="postSubmitBtn" class="composer-submit" onclick="submitPost()">Post</button>
+          </div>
+        </div>
+      </div>
+      <div id="feedPosts"></div>
+    </div>
+<div class="page" id="page-discover">
+      <div class="page-header"><h1>Discover</h1></div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+        <input class="form-input" type="text" placeholder="Search members" oninput="searchUsers(this.value)" style="border-radius:9999px;background:var(--bg-3)">
+        <div id="searchResults"></div>
+      </div>
+      <div class="page-header" style="position:static;border-bottom:none;padding-bottom:0">
+        <div><div style="font-weight:700">People you might know</div><div class="page-header-sub">Verified and unverified members</div></div>
+      </div>
+      <div id="discoverPeople"></div>
+    </div>
+<div class="page" id="page-notifications">
+      <div class="page-header"><h1>Notifications</h1></div>
+      <div id="notifList"></div>
+    </div>
+<div class="page" id="page-messages">
+      <div class="messages-list-view" id="messagesListView">
+        <div class="page-header" style="position:static;display:flex;align-items:center;justify-content:space-between;padding-right:16px"><h1>Messages</h1></div>
+        <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:2px">
+          <button id="msgTabChats" class="msg-tab active" onclick="_switchMsgTab('chats')">Chats</button>
+          <button id="msgTabRequests" class="msg-tab" onclick="_switchMsgTab('requests')" style="position:relative">Requests<span id="msgReqBadge" style="display:none;position:absolute;top:6px;right:8px;background:var(--accent);color:#fff;font-size:0.65rem;font-weight:700;border-radius:9999px;padding:1px 5px;min-width:16px;text-align:center"></span></button>
+        </div>
+        <div id="convList"></div>
+        <div id="msgRequestList" style="display:none"></div>
+      </div>
+      <div class="dm-fullpage" id="dmFullpage" style="display:none">
+        <div class="dm-header" id="dmFullpageHeader"></div>
+        <div class="dm-messages" id="dmMessages"></div>
+        <div class="dm-reply-bar" id="dmReplyBar" style="display:none"><div class="dm-reply-preview"></div><button class="dm-reply-cancel" onclick="cancelReply()">✕</button></div>
+        <div id="dmLinkPreview" style="padding:0 16px"></div>
+        <div class="dm-composer-wrap">
+          <div class="dm-emoji-picker" id="dmEmojiPicker" style="display:none">
+            <span onclick="insertEmoji('❤️')">❤️</span><span onclick="insertEmoji('😂')">😂</span><span onclick="insertEmoji('😮')">😮</span><span onclick="insertEmoji('😢')">😢</span><span onclick="insertEmoji('😡')">😡</span><span onclick="insertEmoji('👍')">👍</span><span onclick="insertEmoji('👎')">👎</span><span onclick="insertEmoji('🔥')">🔥</span><span onclick="insertEmoji('🎉')">🎉</span><span onclick="insertEmoji('💯')">💯</span><span onclick="insertEmoji('😍')">😍</span><span onclick="insertEmoji('🙏')">🙏</span><span onclick="insertEmoji('💪')">💪</span><span onclick="insertEmoji('✅')">✅</span><span onclick="insertEmoji('😭')">😭</span><span onclick="insertEmoji('🤣')">🤣</span><span onclick="insertEmoji('😁')">😁</span><span onclick="insertEmoji('🥳')">🥳</span><span onclick="insertEmoji('👏')">👏</span><span onclick="insertEmoji('💀')">💀</span><span onclick="insertEmoji('🫡')">🫡</span><span onclick="insertEmoji('🤝')">🤝</span><span onclick="insertEmoji('💰')">💰</span><span onclick="insertEmoji('📈')">📈</span><span onclick="insertEmoji('🚀')">🚀</span><span onclick="insertEmoji('⭐')">⭐</span><span onclick="insertEmoji('💎')">💎</span><span onclick="insertEmoji('👑')">👑</span><span onclick="insertEmoji('🤑')">🤑</span><span onclick="insertEmoji('😎')">😎</span>
+          </div>
+          <div class="dm-composer">
+            <button class="dm-emoji-btn" id="dmEmojiBtn" type="button" title="Emoji">😊</button>
+            <label class="dm-img-btn" title="Send photo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><input id="dmImgInput" type="file" accept="image/*" style="display:none"></label>
+            <input id="dmInput" class="dm-input" placeholder="Aa" autocomplete="off">
+            <button class="dm-send-btn" style="opacity:0.5" type="button"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+<div class="page" id="page-profile">
+      <div class="page-header">
+        <h1>Profile</h1>
+        <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="margin-left:auto;color:var(--text-dim)">Sign out</button>
+      </div>
+      <div id="ownProfileContent"></div>
+    </div>
+<div class="page" id="page-user-profile">
+      <div class="page-header">
+        <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
+        <div><h1>Profile</h1></div>
+      </div>
+      <div id="userProfileContent"></div>
+    </div>
+<div class="page" id="page-post-detail">
+      <div class="page-header">
+        <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
+        <div><h1>Post</h1></div>
+      </div>
+      <div id="postDetailContent"></div>
+    </div>
+  </main>
+<aside class="right-sidebar">
+    <div class="search-bar">
+      <div class="search-input-wrap"><span class="search-icon">⌕</span><input class="search-input" type="text" placeholder="Search X Musk Club" oninput="searchUsers(this.value)"></div>
+      <div id="sidebarSearchResults" style="margin-top:8px;max-height:300px;overflow-y:auto"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Suggested members</div>
+      <div id="suggestedMembers"><div class="loading-center"><div class="spinner"></div></div></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">▣ Business Pulse</div>
+      <div id="bizFeedContainer"><div class="bizfeed-loading"><div class="spinner"></div> Loading insights…</div></div>
+      <div class="bizfeed-refresh" onclick="loadBizFeed()">↻ Refresh insights</div>
+    </div>
+    <div class="sidebar-section" id="sidebarAboutSection">
+      <div class="sidebar-section-title">About X Musk Club</div>
+      <p style="font-size:0.83rem;color:var(--text-dim);line-height:1.5">The ultra-premium financial network.</p>
+      <div style="margin-top:12px" id="sidebarVerifyBtn"><button class="btn btn-accent btn-sm" onclick="showPaywall()">Get Verified ✓</button></div>
+    </div>
+  </aside>
+</div>
+<nav class="mobile-nav" style="display:none">
+
+  <div class="mobile-nav-links">
+    <div class="mobile-nav-link" data-page="feed" onclick="showPage('feed')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home</span></div>
+    <div class="mobile-nav-link" data-page="discover" onclick="showPage('discover')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Discover</span></div>
+    <div class="mobile-nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Notifs</span><span class="mobile-nav-badge" id="mobileNotifBadge" style="display:none">0</span></div>
+    <div class="mobile-nav-link" data-page="messages" onclick="showPage('messages')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span>Messages</span><span class="mobile-nav-badge" id="mobileMsgBadge" style="display:none">0</span></div>
+    <div class="mobile-nav-link" data-page="profile" onclick="showPage('profile')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>Profile</span></div>
+  </div>
+
+</nav>
+
+<div class="modal-overlay" id="editProfileModal" onclick="if(event.target===this)closeModal('editProfileModal')">
+  <div class="modal-card">
+    <div class="modal-header"><div class="modal-close" onclick="closeModal('editProfileModal')">✕</div><h2>Edit Profile</h2><button class="btn btn-primary btn-sm" onclick="saveProfile()" style="margin-left:auto">Save</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Display Name</label><input id="editDisplayName" class="form-input" type="text" placeholder="Your name"></div>
+      <div class="form-group"><label class="form-label">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="editHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="off"></div></div>
+      <div class="form-group"><label class="form-label">Bio</label><textarea id="editBio" class="form-input" rows="3" placeholder="Tell people about yourself" style="resize:vertical"></textarea></div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="newPostModal" onclick="if(event.target===this)closeModal('newPostModal')">
+      <div class="modal-card"><div class="modal-header"><div class="modal-close" onclick="closeModal('newPostModal')">✕</div><h2>New Post</h2></div>
+      <div class="modal-body"><div class="composer" style="padding:0;border:none"><div class="composer-body" style="width:100%"><textarea id="modalPostText" placeholder="What's happening?" rows="4" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:1.13rem;resize:none"></textarea><div class="composer-actions"><button class="composer-submit" onclick="submitModalPost()">Post</button></div></div></div></div>
+      </div>
+    </div>
+<div class="paywall-modal" id="paywallModal" onclick="if(event.target===this)closePaywall()">
+  <div class="paywall-card">
+    <div class="paywall-icon">✓</div><div class="paywall-title">Get Verified</div>
+    <div class="paywall-desc">Submit a selfie and an ID card photo for review — free, reviewed by our team.</div>
+    <div class="form-group" style="text-align:left;margin-top:16px">
+      <label class="form-label">Selfie</label>
+      <input type="file" id="verifySelfieInput" accept="image/*" capture="user" class="form-input">
+    </div>
+    <div class="form-group" style="text-align:left">
+      <label class="form-label">ID Card Photo</label>
+      <input type="file" id="verifyIdInput" accept="image/*" class="form-input">
+    </div>
+    <button class="btn btn-accent btn-block btn-lg" onclick="submitVerificationRequest()">Submit for Review</button>
+    <button class="btn btn-outline btn-block" onclick="closePaywall()" style="margin-top:10px">Maybe later</button>
+  </div>
+</div>
+
+<button class="mobile-theme-fab" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme"><span id="mobileThemeIcon">☀</span></button>
+<button class="mobile-push-fab" id="navPushBtnMobile" onclick="togglePushFromNav()" title="Notifications" aria-label="Notifications" style="display:none"><span id="pushToggleIconMobile">🔕</span></button>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase.js"></script>
+<script src="cloudinary.js"></script>
+<script src="config.js"></script>
+<script src="utils.js"></script>
+<script src="router.js"></script>
+<script src="auth.js"></script>
+<script src="feed.js"></script>
+<script src="discover.js"></script>
+<script src="profile.js"></script>
+<script src="notifications.js"></script>
+<script src="messages.js"></script>
+<script src="sidebar.js"></script>
+<script src="push.js"></script>
+<script src="boot.js"></script>
+</body>
+</html>

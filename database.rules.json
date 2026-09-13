@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "typing": {
+      "$convId": {
+        ".read": "auth != null && $convId.contains(auth.uid)",
+        ".write": "auth != null && $convId.contains(auth.uid)"
+      }
+    },
+
+    "presence": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
