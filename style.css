@@ -551,17 +551,17 @@ body.theme-light .spinner { border-color: rgba(0, 0, 0, 0.12); border-top-color:
    MESSAGES
 ══════════════════════════════════════════════ */
 /* ══════════════════════════════════════════════
-   LIGHT / GOLD PREMIUM THEME
+   LIGHT THEME
 ══════════════════════════════════════════════ */
 body.theme-light {
-  --bg:         #faf7f0;
-  --bg-2:       #f2edd9;
-  --bg-3:       #ece5cc;
-  --bg-hover:   #e8dfc4;
-  --border:     #d4c89a;
-  --text:       #1a160a;
-  --text-dim:   #7a6a3a;
-  --text-muted: #a8935a;
+  --bg:         #ffffff;
+  --bg-2:       #f7f8f9;
+  --bg-3:       #eff1f3;
+  --bg-hover:   #e8eaed;
+  --border:     #d7dbdf;
+  --text:       #15181c;
+  --text-dim:   #5b6570;
+  --text-muted: #8a94a0;
   --accent:     #1d9bf0;
   --accent-hover:#1a8cd8;
   --accent-dim: rgba(29,155,240,0.15);
@@ -1765,7 +1765,7 @@ body.theme-light .form-input:-webkit-autofill:focus {
   overflow: hidden;
 }
 
-/* Gold grid lines */
+/* Faint grid lines */
 .landing-bg-grid {
   position: absolute;
   inset: 0;
@@ -2125,7 +2125,7 @@ body.theme-light #page-landing { background: #fff; }
 body.theme-light .landing-topbar { background: rgba(255,255,255,0.7); }
 body.theme-light .landing-topbar-name { color: rgba(0,0,0,0.55); }
 body.theme-light .landing-headline-main {
-  background: linear-gradient(160deg, #1a160a 0%, var(--accent) 45%, #1a160a 75%, var(--accent-hover) 100%);
+  background: linear-gradient(160deg, var(--text) 0%, var(--accent) 45%, var(--text) 75%, var(--accent-hover) 100%);
   -webkit-background-clip: text; background-clip: text;
 }
 body.theme-light .landing-tagline { color: rgba(0,0,0,0.6); }
