@@ -20,6 +20,8 @@ const PAGE_ROUTES = {
   messages:       '/messages',
   profile:        '/profile',
   settings:       '/settings',
+  groups:         '/groups',
+  'group-detail': '/group',
   'user-profile': '/profile-view',
   'post-detail':  '/post',
 };
@@ -33,6 +35,7 @@ function pageFromLocation() {
   const opts = {};
   if (params.get('uid')) opts.uid = params.get('uid');
   if (params.get('postId')) opts.postId = params.get('postId');
+  if (params.get('groupId')) opts.groupId = params.get('groupId');
   return { name, opts };
 }
 
@@ -63,6 +66,7 @@ function showPage(name, opts = {}) {
   const params = new URLSearchParams();
   if (opts.uid) params.set('uid', opts.uid);
   if (opts.postId) params.set('postId', opts.postId);
+  if (opts.groupId) params.set('groupId', opts.groupId);
   const qs = params.toString();
   if (qs) url += '?' + qs;
 

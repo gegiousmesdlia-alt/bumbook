@@ -327,6 +327,12 @@ function _rebuildConvUI() {
     const unread  = allMsgs.filter(m =>
       m.senderUid !== currentUser.uid && (!m.readBy || !m.readBy[currentUser.uid])
     ).length;
+    if (unread > 0 && latest && latest.senderUid === currentUser.uid) {
+      console.warn('[unread] conv shows unread but latest message is mine — investigate:', {
+        convUid: uid, unreadCount: unread, latestMsg: latest,
+        allMsgsSenders: allMsgs.map(m => ({ id: m.id, senderUid: m.senderUid, mine: m.senderUid === currentUser.uid, readBy: m.readBy }))
+      });
+    }
     rows.push({ uid, profile, latest, unread, ts: latest?.createdAt || 0 });
   });
 
@@ -338,7 +344,7 @@ function _rebuildConvUI() {
   });
 
   container.innerHTML = rows.map(({ uid, profile: p, latest, unread, ts }) => {
-    const preview   = latest ? (latest.imageUrl ? '📷 Photo' : String(latest.text || '').slice(0, 50)) : 'Say hello!';
+    const preview   = latest ? ((latest.imageUrl || latest.imageUrls) ? 'Photo' : String(latest.text || '').slice(0, 50)) : 'Say hello!';
     const timeStr   = ts > 0 ? timeAgo(ts) : '';
     const hasUnread = unread > 0;
     return `<div class="conv-row${hasUnread ? ' conv-row-unread' : ''}" onclick="openDMWith('${uid}')">
@@ -410,7 +416,7 @@ function _watchConv(uid) {
       try {
         const ps = await window.XF.get('users/' + uid);
         const prof = ps.exists() ? ps.val() : { displayName: 'New message' };
-        showMsgPopup(uid, prof, m.imageUrl ? '📷 Photo' : (m.text || ''));
+        showMsgPopup(uid, prof, (m.imageUrl || m.imageUrls) ? 'Photo' : (m.text || ''));
       } catch (_) {}
     }
   };

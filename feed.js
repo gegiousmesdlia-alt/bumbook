@@ -77,6 +77,12 @@ async function _loadFeedPage(container, isFirst) {
     if (posts.length <= FEED_PAGE_SIZE) _feedExhausted = true;
     posts = posts.slice(0, FEED_PAGE_SIZE);
     posts = posts.filter(p => !blockedUids.has(p.authorUid));
+    // Group posts: public groups' posts appear in everyone's feed (members
+    // and non-members alike). Private groups' posts are only visible to
+    // that group's members — this is the feed-side half of that rule; the
+    // Firestore rules are the authoritative half.
+    const myGroups = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
+    posts = posts.filter(p => !p.groupId || p.groupPrivacy !== 'private' || myGroups.has(p.groupId));
     if (posts.length > 0) _feedOldestTs = posts[posts.length - 1].createdAt || 0;
     spinner.remove();
     if (isFirst && posts.length === 0) {
@@ -154,6 +160,7 @@ function postHTML(post, author) {
         <span class="post-time">· ${timeAgo(post.createdAt)}</span>
         ${isOwner ? `<span onclick="event.stopPropagation();deletePost('${post.id}')" style="margin-left:auto;color:var(--text-dim);cursor:pointer;font-size:0.8rem;padding:2px 8px;border-radius:4px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-dim)'">✕</span>` : ''}
       </div>
+      ${post.groupId ? `<div class="post-group-tag" onclick="event.stopPropagation();openGroup('${post.groupId}')">→ Posted in <strong>${escapeHTML(post.groupName || 'a group')}</strong></div>` : ''}
       <div class="post-text">${escapeHTML(post.text || '')}</div>
       ${mediaHTML}
       ${post.linkPreview ? linkPreviewCardHTML(post.linkPreview) : ''}

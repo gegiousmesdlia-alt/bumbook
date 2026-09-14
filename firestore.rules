@@ -15,6 +15,17 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email == 'admin@gmail.com';
     }
 
+    function isGroupAdmin(groupId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isVerified() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verified == true;
+    }
+
     /* ── users/{uid} ─────────────────────────────────────────────────── */
     match /users/{uid} {
       allow read: if true;
@@ -94,6 +105,35 @@ service cloud.firestore {
     match /verificationRequests/{uid} {
       allow read, create, update: if isSelf(uid) || isAdmin();
       allow delete: if isAdmin();
+    }
+
+    /* ── groups/{groupId} ── metadata is publicly readable (so private
+       groups still show up in search/discovery by name — same as
+       Facebook — only their posts and full member actions are gated),
+       creation requires a verified account, and only a group admin (or
+       the site admin) can edit/delete the group itself. ──────────────── */
+    match /groups/{groupId} {
+      allow read: if true;
+      allow create: if isVerified() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isGroupAdmin(groupId) || isAdmin();
+      allow delete: if isGroupAdmin(groupId) || isAdmin();
+
+      // Membership: joining yourself covers public groups and accepting an
+      // invite; a group admin (or site admin) covers approving requests,
+      // removing members, and promoting/demoting roles.
+      match /members/{uid} {
+        allow read: if true;
+        allow write: if isSelf(uid) || isGroupAdmin(groupId) || isAdmin();
+      }
+
+      // Join requests (private + "request" join mode) — written by the
+      // requester into the group's own subtree, so create needs to target
+      // someone else's (the group's) subcollection.
+      match /joinRequests/{uid} {
+        allow read: if isSelf(uid) || isGroupAdmin(groupId) || isAdmin();
+        allow create: if isSelf(uid);
+        allow delete: if isSelf(uid) || isGroupAdmin(groupId) || isAdmin();
+      }
     }
 
     /* ── conversations/{convId}/messages/{msgId} ── DMs.

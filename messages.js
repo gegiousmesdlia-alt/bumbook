@@ -18,6 +18,37 @@ let _dmPartner    = null;
 let _dmTypingOff  = null;
 let _dmPresenceOff = null;
 let _dmTypingTimer = null;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRESENCE — writes presence/{uid}, which _dmStartListeners already reads.
+   Standard Firebase pattern: watch the special .info/connected path (fires
+   whenever this specific socket connects/reconnects), and on each connect,
+   (a) register an onDisconnect that flips us to offline+lastSeen the moment
+   this connection drops — server-side, so it fires even on a crashed tab or
+   lost network, not just a clean close — then (b) mark ourselves online now.
+   This was wired up to be called (auth.js already had the call site) but the
+   function itself was never written, so no one was ever marked online.
+═══════════════════════════════════════════════════════════════════════════ */
+function _initPresence(uid) {
+  if (!uid || !window.XF || !window.XF.db) return;
+  const myPresence   = window.XF.db.ref('presence/' + uid);
+  const connectedRef = window.XF.db.ref('.info/connected');
+
+  connectedRef.on('value', snap => {
+    if (snap.val() !== true) return;
+    myPresence.onDisconnect().set({ online: false, lastSeen: Date.now() }).then(() => {
+      myPresence.set({ online: true, lastSeen: Date.now() });
+    });
+  });
+
+  // Also mark offline on a clean tab close/navigation — onDisconnect covers
+  // crashes/lost network, but firing it immediately on a normal close means
+  // the other person sees "offline" right away instead of waiting out
+  // Firebase's connection-timeout window.
+  window.addEventListener('beforeunload', () => {
+    myPresence.set({ online: false, lastSeen: Date.now() });
+  });
+}
 let _dmMsgOff     = null;
 let _dmReplyMsg   = null;
 let _dmEmojiOpen  = false;
@@ -141,14 +172,16 @@ function _dmWireComposer(uid) {
   const input = $('dmInput');
   if (input) {
     input.value = '';
-    input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); dmSendText(uid); } };
+    input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); dmSend(uid); } };
     input.oninput   = () => { dmTyping(uid); dmUpdateSendBtn(); debouncedComposerPreview(input.value, 'dmLinkPreview'); };
   }
   const sendBtn = document.querySelector('#dmFullpage .dm-send-btn');
-  if (sendBtn) sendBtn.onclick = () => dmSendText(uid);
+  if (sendBtn) sendBtn.onclick = () => dmSend(uid);
 
+  _dmPendingImages = [];
+  const previewEl = $('dmImgPreview'); if (previewEl) previewEl.innerHTML = '';
   const imgInput = $('dmImgInput');
-  if (imgInput) { imgInput.value = ''; imgInput.onchange = () => dmSendImage(imgInput, uid); }
+  if (imgInput) { imgInput.value = ''; imgInput.onchange = () => previewDmImages(imgInput); }
 
   const emojiBtn = $('dmEmojiBtn');
   if (emojiBtn) emojiBtn.onclick = e => { e.stopPropagation(); dmToggleEmoji(); };
@@ -258,13 +291,18 @@ function _buildMsgsHTML(msgs, uid, convId) {
     if (m.replyTo) {
       replyHTML = `<div class="dm-reply-preview-bubble" onclick="dmScrollTo('${m.replyTo.id}')">
         <div class="dm-reply-name">${escapeHTML(m.replyTo.senderName || '')}</div>
-        <div class="dm-reply-text">${m.replyTo.imageUrl ? '📷 Photo' : escapeHTML((m.replyTo.text||'').slice(0,50))}</div>
+        <div class="dm-reply-text">${(m.replyTo.imageUrl || m.replyTo.imageUrls) ? 'Photo' : escapeHTML((m.replyTo.text||'').slice(0,50))}</div>
       </div>`;
     }
 
     // Content
     let content = '';
-    if (m.imageUrl) content += `<img src="${escapeHTML(m.imageUrl)}" class="dm-img-bubble" onclick="openLightbox('${escapeHTML(m.imageUrl)}')" loading="lazy">`;
+    if (m.imageUrls && m.imageUrls.length) {
+      const galleryClass = 'dm-img-gallery dm-img-gallery-' + Math.min(m.imageUrls.length, 4);
+      content += `<div class="${galleryClass}">` + m.imageUrls.map(u =>
+        `<img src="${escapeHTML(u)}" class="dm-img-bubble dm-img-gallery-item" onclick="openLightbox('${escapeHTML(u)}')" loading="lazy">`
+      ).join('') + '</div>';
+    } else if (m.imageUrl) content += `<img src="${escapeHTML(m.imageUrl)}" class="dm-img-bubble" onclick="openLightbox('${escapeHTML(m.imageUrl)}')" loading="lazy">`;
     if (m.text)     content += `<span class="dm-text">${escapeHTML(m.text)}</span>`;
     if (m.linkPreview) content += linkPreviewCardHTML(m.linkPreview);
 
@@ -357,14 +395,14 @@ async function dmReply(cid, mid) {
   document.querySelectorAll('.dm-ctx').forEach(m => m.remove());
   const m = _dmMsgCache.get(mid); if (!m) return;
   _dmReplyMsg = {
-    id: mid, text: m.text || '', imageUrl: m.imageUrl || '',
+    id: mid, text: m.text || '', imageUrl: m.imageUrl || '', imageUrls: m.imageUrls || null,
     senderName: m.senderUid === currentUser.uid ? 'You' : (_dmPartner?.displayName || 'Member')
   };
   const bar = $('dmReplyBar');
   if (bar) {
     bar.style.display = 'flex';
     const prev = bar.querySelector('.dm-reply-preview');
-    if (prev) prev.innerHTML = `<strong>${escapeHTML(_dmReplyMsg.senderName)}</strong><br><span>${_dmReplyMsg.imageUrl ? '📷 Photo' : escapeHTML(_dmReplyMsg.text.slice(0,60))}</span>`;
+    if (prev) prev.innerHTML = `<strong>${escapeHTML(_dmReplyMsg.senderName)}</strong><br><span>${(_dmReplyMsg.imageUrl || _dmReplyMsg.imageUrls) ? 'Photo' : escapeHTML(_dmReplyMsg.text.slice(0,60))}</span>`;
   }
   $('dmInput')?.focus();
 }
@@ -423,7 +461,9 @@ function insertEmoji(emoji) {
 }
 function dmUpdateSendBtn() {
   const btn = document.querySelector('#dmFullpage .dm-send-btn'); if (!btn) return;
-  btn.style.opacity = ($('dmInput')?.value?.trim()?.length || 0) > 0 ? '1' : '0.5';
+  const hasText = ($('dmInput')?.value?.trim()?.length || 0) > 0;
+  const hasImages = _dmPendingImages.length > 0;
+  btn.style.opacity = (hasText || hasImages) ? '1' : '0.5';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -471,8 +511,15 @@ async function _markDelivered(convId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SEND TEXT
+   SEND — dispatches to text-only or images(+optional caption), whichever
+   the composer currently holds. This is what the send button and Enter key
+   both call now.
 ═══════════════════════════════════════════════════════════════════════════ */
+async function dmSend(uid) {
+  if (_dmPendingImages.length > 0) return dmSendPendingImages(uid);
+  return dmSendText(uid);
+}
+
 async function dmSendText(uid) {
   uid = uid || activeConvUid;
   if (!uid || !currentUser) return;
@@ -518,27 +565,61 @@ async function dmSendText(uid) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SEND IMAGE
+   IMAGES — select multiple, preview as a thumbnail strip with per-image
+   remove, then send them all as ONE message (imageUrls array) with an
+   optional caption pulled from the text input, matching how a gallery
+   message renders as a single grouped bubble.
 ═══════════════════════════════════════════════════════════════════════════ */
-async function dmSendImage(inputEl, uid) {
+let _dmPendingImages = []; // File[]
+
+function previewDmImages(input) {
+  if (!input?.files?.length) return;
+  _dmPendingImages = _dmPendingImages.concat(Array.from(input.files));
+  input.value = ''; // allow re-selecting the same file, and lets the user add more in a second pick
+  _renderDmImagePreview();
+  dmUpdateSendBtn();
+}
+
+function removeDmPendingImage(index) {
+  _dmPendingImages.splice(index, 1);
+  _renderDmImagePreview();
+  dmUpdateSendBtn();
+}
+
+function _renderDmImagePreview() {
+  const el = $('dmImgPreview'); if (!el) return;
+  if (_dmPendingImages.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="dm-img-preview-strip">' + _dmPendingImages.map((file, i) => {
+    const url = URL.createObjectURL(file);
+    return `<div class="dm-img-preview-thumb"><img src="${url}"><div class="img-preview-remove" onclick="removeDmPendingImage(${i})">✕</div></div>`;
+  }).join('') + '</div>';
+}
+
+async function dmSendPendingImages(uid) {
   uid = uid || activeConvUid;
-  if (!uid || !currentUser || !inputEl?.files?.[0]) return;
-  showToast('Uploading…');
+  if (!uid || !currentUser || _dmPendingImages.length === 0) return;
+  const files = _dmPendingImages;
+  _dmPendingImages = [];
+  _renderDmImagePreview();
+  const input = $('dmInput');
+  const caption = input?.value?.trim() || '';
+  if (input) { input.value = ''; dmUpdateSendBtn(); }
+
+  showToast(files.length > 1 ? `Uploading ${files.length} photos…` : 'Uploading…');
   try {
-    const r   = await window.XCloud.upload(inputEl.files[0], 'dm_images');
+    const uploads = await Promise.all(files.map(f => window.XCloud.upload(f, 'dm_images')));
     const cid = [currentUser.uid, uid].sort().join('_');
     const msg = {
       senderUid: currentUser.uid,
-      imageUrl: r.url,
-      text: '',
+      imageUrls: uploads.map(r => r.url),
+      text: caption,
       createdAt: Date.now(),
       readBy: { [currentUser.uid]: true }
     };
     if (_dmReplyMsg) { msg.replyTo = { ..._dmReplyMsg }; cancelReply(); }
     await window.XF.push('dms/' + cid, msg);
-    inputEl.value = '';
-    _dmNotifyRecipient(uid, '📷 Photo');
-  } catch(e) { showToast('Image upload failed'); }
+    _dmNotifyRecipient(uid, files.length > 1 ? `${files.length} photos` : 'Photo');
+  } catch (e) { showToast('Image upload failed'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

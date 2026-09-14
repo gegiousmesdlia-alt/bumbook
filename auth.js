@@ -204,6 +204,8 @@ function onPageActivated(page, opts = {}) {
     if (page === 'messages')      renderConversations();
     if (page === 'profile')       renderOwnProfile();
     if (page === 'settings')      syncThemeSettingsUI();
+    if (page === 'groups')        renderGroupsPage();
+    if (page === 'group-detail')  renderGroupDetail(opts.groupId);
     if (page === 'user-profile') {
       const uid = opts.uid || new URLSearchParams(window.location.search).get('uid');
       if (uid) renderUserProfile(uid); else showPage('feed');
@@ -219,6 +221,11 @@ function onPageActivated(page, opts = {}) {
     } else if (page === 'post-detail') {
       const postId = opts.postId || new URLSearchParams(window.location.search).get('postId');
       if (postId) renderPostDetail(postId);
+    } else if (page === 'groups') {
+      renderGroupsPage();
+    } else if (page === 'group-detail') {
+      const groupId = opts.groupId || new URLSearchParams(window.location.search).get('groupId');
+      if (groupId) renderGroupDetail(groupId);
     }
   }
 }

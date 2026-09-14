@@ -73,7 +73,7 @@ class FakeSnapshot {
      notifications/{uid}[/{id}]    -> users/{uid}/notifications[/{id}]
      profileViews/{uid}[/{id}]     -> users/{uid}/profileViews[/{id}]
    ═══════════════════════════════════════════════════════════════════════ */
-const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests']);
+const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests', 'groups']);
 const FIXED_DOC_ROOTS = { appConfig: 'appConfig', config: 'config' }; // -> settings/{fixedDocId}
 const SUB_ROOTS = {
   comments:        { parentColl: 'posts', sub: 'comments' },
@@ -83,6 +83,8 @@ const SUB_ROOTS = {
   messageRequests: { parentColl: 'users', sub: 'messageRequests' },
   notifications:   { parentColl: 'users', sub: 'notifications' },
   profileViews:    { parentColl: 'users', sub: 'profileViews' },
+  groupMembers:      { parentColl: 'groups', sub: 'members' },
+  groupJoinRequests: { parentColl: 'groups', sub: 'joinRequests' },
 };
 
 function _resolve(path) {
