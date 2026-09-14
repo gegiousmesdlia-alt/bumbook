@@ -204,6 +204,24 @@ function _dmWireComposer(uid) {
    child_removed → deleted message
    All three update _dmMsgCache then debounce a re-render.
 ═══════════════════════════════════════════════════════════════════════════ */
+/* WhatsApp-style typing bubble pinned to the bottom of the thread, shown
+   while the other person is actively typing in this conversation. Separate
+   from the header status line — both fire off the same typing listener. */
+function _renderTypingBubble(isTyping) {
+  const msgEl = $('dmMessages'); if (!msgEl) return;
+  const existing = $('dmTypingBubble');
+  if (!isTyping) { if (existing) existing.remove(); return; }
+  if (existing) return; // already shown
+  const wasAtBottom = msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 140;
+  const el = document.createElement('div');
+  el.id = 'dmTypingBubble';
+  el.className = 'dm-wrap them';
+  el.innerHTML = `<div class="dm-avatar">${avatarHTML(_dmPartner, 'sm')}</div>
+    <div class="dm-col"><div class="dm-bubble them dm-typing-bubble"><span></span><span></span><span></span></div></div>`;
+  msgEl.appendChild(el);
+  if (wasAtBottom) msgEl.scrollTop = msgEl.scrollHeight;
+}
+
 function _dmStartListeners(uid, convId) {
   const dmPath   = 'dms/' + convId;
   const typPath  = 'typing/' + convId + '/' + uid;
@@ -225,19 +243,32 @@ function _dmStartListeners(uid, convId) {
 
   _dmMsgOff = () => { dmUnsub(); };
 
+  // Typing + presence live in the Realtime Database (see firebase.js header),
+  // NOT Firestore — and the writes already go there via window.XF.db.ref().
+  // Reading them through window.XF.on() routed to Firestore's resolver, which
+  // has no mapping for these paths and threw "[XF] Unmapped path", aborting
+  // listener setup entirely. That's why online status and typing never
+  // appeared. Read them straight off the RTDB handle instead.
+  const rtdb = window.XF.db;
+
   // Typing — layers on top of presence, doesn't replace it
+  const typRef = rtdb.ref(typPath);
   const onType = snap => {
     _dmPartnerTyping = snap.val() === true;
     _updateDmStatus(_dmPartnerPresence, _dmPartnerTyping);
+    _renderTypingBubble(_dmPartnerTyping);
   };
-  _dmTypingOff = window.XF.on(typPath, onType);
+  typRef.on('value', onType);
+  _dmTypingOff = () => typRef.off('value', onType);
 
   // Presence — online / last seen
+  const presRef = rtdb.ref(presPath);
   const onPresence = snap => {
     _dmPartnerPresence = snap.exists() ? snap.val() : null;
     _updateDmStatus(_dmPartnerPresence, _dmPartnerTyping);
   };
-  _dmPresenceOff = window.XF.on(presPath, onPresence);
+  presRef.on('value', onPresence);
+  _dmPresenceOff = () => presRef.off('value', onPresence);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

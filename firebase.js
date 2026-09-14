@@ -116,6 +116,21 @@ function _resolve(path) {
   return null; // unmapped path — caller should treat as an error
 }
 
+/* Build/extend a nested object from a dot-separated field path.
+   _setNested({}, 'readBy.abc', true) -> { readBy: { abc: true } }
+   Needed because Firestore's set(..., {merge:true}) treats a dotted KEY as a
+   literal field name; only update() interprets dots as a path. */
+function _setNested(obj, fieldPath, val) {
+  const keys = String(fieldPath).split('.');
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (typeof cur[keys[i]] !== 'object' || cur[keys[i]] === null) cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = val;
+  return obj;
+}
+
 function _getByFieldPath(obj, fieldPath) {
   if (!obj) return null;
   return fieldPath.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
@@ -214,14 +229,15 @@ async function loadFirebase() {
     async set(path, val) {
       const r = _resolve(path);
       if (!r) throw new Error(`[XF] Unmapped path: ${path}`);
-      if (r.kind === 'field') return r.fsRef.set({ [r.fieldPath]: val }, { merge: true });
+      // Nested object, not a dotted key — see the note in multiUpdate.
+      if (r.kind === 'field') return r.fsRef.set(_setNested({}, r.fieldPath, val), { merge: true });
       return r.fsRef.set(_wrapPrimitive(val));
     },
 
     async update(path, val) {
       const r = _resolve(path);
       if (!r) throw new Error(`[XF] Unmapped path: ${path}`);
-      if (r.kind === 'field') return r.fsRef.set({ [r.fieldPath]: val }, { merge: true });
+      if (r.kind === 'field') return r.fsRef.set(_setNested({}, r.fieldPath, val), { merge: true });
       return r.fsRef.set(val, { merge: true });
     },
 
@@ -245,12 +261,18 @@ async function loadFirebase() {
 
     // Multi-path atomic-ish update (used for DM readBy/deliveredTo fan-out).
     async multiUpdate(updates) {
-      const byDoc = new Map(); // fsRef -> { fieldPath: value }
+      const byDoc = new Map(); // fsRef -> nested object to merge
       for (const [path, val] of Object.entries(updates)) {
         const r = _resolve(path);
         if (!r || r.kind !== 'field') continue;
         if (!byDoc.has(r.fsRef)) byDoc.set(r.fsRef, {});
-        byDoc.get(r.fsRef)[r.fieldPath] = val;
+        // IMPORTANT: set(..., {merge:true}) treats a dotted key as a LITERAL
+        // field name (only update() interprets dots as nested paths). Writing
+        // {'readBy.uid': true} therefore created a junk top-level field and
+        // the real readBy map never got the entry — which is why read
+        // receipts and unread counts didn't work. Build the nested object
+        // instead so merge does the right thing.
+        _setNested(byDoc.get(r.fsRef), r.fieldPath, val);
       }
       return Promise.all([...byDoc.entries()].map(([ref, fields]) => ref.set(fields, { merge: true })));
     },

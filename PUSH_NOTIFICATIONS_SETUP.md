@@ -36,7 +36,7 @@ Redeploy after adding the environment variables — Vercel only picks them up on
 ## How it works end-to-end
 
 **Scheduled reminders** (e.g. RSVP → 1-hour-before reminder):
-1. A user clicks the 🔔 bell icon in the nav bar → `enablePushNotifications()` in `push.js` runs → browser asks for permission → subscribes → the subscription is saved to Firestore (`pushSubscriptions/{id}`, tagged with the owner's uid — a user can have more than one, e.g. desktop + phone).
+1. A user turns on "Push notifications on this device" in Settings (Profile → Settings) → `enablePushNotifications()` in `push.js` runs → browser asks for permission → subscribes → the subscription is saved to Firestore (`pushSubscriptions/{id}`, tagged with the owner's uid — a user can have more than one, e.g. desktop + phone).
 2. Something schedules a reminder — right now this happens automatically when someone RSVPs to an event (1 hour before start) via `maybeScheduleEventReminder()` in `feed.js`. This just writes a plain record to `scheduledPushes/{id}: { uid: targetUid, title, body, sendAt, sent:false }`.
 3. Once a minute, cron-job.org calls `/api/check-scheduled-pushes`. That function (using the Firebase Admin SDK + your service account) checks for anything due, looks up ALL of that target user's subscriptions, sends via `web-push` to each, and marks it sent.
 

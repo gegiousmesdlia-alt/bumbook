@@ -218,6 +218,27 @@ function _rebuildNotifUI() {
 // No fetch needed — cache is already live.
 function renderNotifications() {
   _rebuildNotifUI();
+  // Opening the notifications page counts as seeing them — mark them read
+  // automatically (as every other app does) instead of relying on the user
+  // finding the "Mark all as read" button. Short delay so the unread
+  // highlight is actually visible for a moment before it clears.
+  setTimeout(() => {
+    if (window.__PAGE__ === 'notifications') _autoMarkNotifsRead();
+  }, 1200);
+}
+
+async function _autoMarkNotifsRead() {
+  if (!currentUser) return;
+  try {
+    const updates = {};
+    _notifCache.forEach((n, id) => {
+      if (!n.read) updates['notifications/' + currentUser.uid + '/' + id + '/read'] = true;
+    });
+    if (Object.keys(updates).length) {
+      await window.XF.multiUpdate(updates);
+      _setBadge('notif', 0);
+    }
+  } catch (e) {}
 }
 
 /* ── Mark all read ──────────────────────────────────────────────────────── */

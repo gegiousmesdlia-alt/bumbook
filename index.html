@@ -343,6 +343,11 @@
       <textarea id="groupDescInput" class="form-input" rows="2" placeholder="What is this group about?" maxlength="300"></textarea>
     </div>
     <div class="form-group">
+      <label class="form-label">Group photo (optional)</label>
+      <input type="file" id="groupCoverInput" accept="image/*" class="form-input" onchange="previewGroupCover(this)">
+      <div id="groupCoverPreview"></div>
+    </div>
+    <div class="form-group">
       <label class="form-label">Privacy</label>
       <label class="settings-radio-row" style="margin-bottom:8px"><input type="radio" name="groupPrivacy" value="public" checked onchange="onGroupPrivacyChange(this.value)"><span>Public <span style="color:var(--text-dim);font-weight:400">— anyone can see posts and join</span></span></label>
       <label class="settings-radio-row"><input type="radio" name="groupPrivacy" value="private" onchange="onGroupPrivacyChange(this.value)"><span>Private <span style="color:var(--text-dim);font-weight:400">— only members see posts</span></span></label>

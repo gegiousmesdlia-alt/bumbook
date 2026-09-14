@@ -106,6 +106,8 @@ function openCreateGroupModal() {
 function closeCreateGroupModal() {
   const m = $('createGroupModal'); if (m) m.classList.remove('open');
   ['groupNameInput','groupDescInput'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+  const cover = $('groupCoverInput'); if (cover) cover.value = '';
+  const coverPrev = $('groupCoverPreview'); if (coverPrev) coverPrev.innerHTML = '';
   const priv = document.querySelector('input[name="groupPrivacy"][value="public"]'); if (priv) priv.checked = true;
   const joinMode = document.querySelector('input[name="groupJoinMode"][value="request"]'); if (joinMode) joinMode.checked = true;
   const jmRow = $('groupJoinModeRow'); if (jmRow) jmRow.style.display = 'none';
@@ -124,13 +126,21 @@ async function submitCreateGroup() {
 
   const btn = $('createGroupSubmitBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
   try {
+    let coverURL = '';
+    const coverInput = $('groupCoverInput');
+    if (coverInput?.files?.[0]) {
+      if (btn) btn.textContent = 'Uploading photo…';
+      const r = await window.XCloud.upload(coverInput.files[0], 'group_covers');
+      coverURL = r.url;
+      if (btn) btn.textContent = 'Creating…';
+    }
     const groupData = {
       name, description, privacy,
       joinMode: privacy === 'private' ? joinMode : 'open',
       createdBy: currentUser.uid,
       createdAt: Date.now(),
       membersCount: 1,
-      coverURL: ''
+      coverURL
     };
     const ref = await window.XF.push('groups', groupData);
     const groupId = ref.key;
@@ -145,6 +155,45 @@ async function submitCreateGroup() {
     showToast('Could not create group');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Create group'; }
+  }
+}
+
+function previewGroupCover(input) {
+  const preview = $('groupCoverPreview');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => { preview.innerHTML = `<div class="img-preview-wrap"><img src="${e.target.result}"><div class="img-preview-remove" onclick="removeGroupCover()">✕</div></div>`; };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+function removeGroupCover() {
+  const i = $('groupCoverInput'); if (i) i.value = '';
+  const p = $('groupCoverPreview'); if (p) p.innerHTML = '';
+}
+
+/* Admin: change an existing group's cover photo from the group page. */
+async function changeGroupCover(input) {
+  if (!_activeGroup || _activeGroupRole !== 'admin' || !input?.files?.[0]) return;
+  showToast('Uploading…');
+  try {
+    const r = await window.XCloud.upload(input.files[0], 'group_covers');
+    await window.XF.update('groups/' + _activeGroup.id, { coverURL: r.url });
+    _activeGroup.coverURL = r.url;
+    showToast('Group photo updated');
+    renderGroupDetail(_activeGroup.id);
+  } catch (e) { showToast('Could not update photo'); }
+}
+
+/* Share — native share sheet where available, clipboard copy otherwise. */
+function shareGroup(groupId, groupName) {
+  const url = `${window.location.origin}/group?groupId=${encodeURIComponent(groupId)}`;
+  const text = `Check out ${groupName || 'this group'} on Bum Book`;
+  if (navigator.share) {
+    navigator.share({ title: groupName || 'Bum Book group', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url)
+      .then(() => showToast('Group link copied'))
+      .catch(() => showToast(url));
   }
 }
 
@@ -222,12 +271,17 @@ function _groupHeaderHTML(g, role, hasPendingRequest) {
     : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Public group';
 
   return `<div class="group-header">
-    <div class="group-cover" style="${g.coverURL ? `background-image:url('${escapeHTML(g.coverURL)}')` : ''}"></div>
+    <div class="group-cover" style="${g.coverURL ? `background-image:url('${escapeHTML(g.coverURL)}')` : ''}">
+      ${role === 'admin' ? `<label class="group-cover-edit" title="Change group photo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><input type="file" accept="image/*" style="display:none" onchange="changeGroupCover(this)"></label>` : ''}
+    </div>
     <div class="group-header-body">
       <div class="group-header-name">${escapeHTML(g.name || 'Untitled group')}</div>
       <div class="group-header-meta">${privacyLabel} · ${formatCount(g.membersCount || 0)} member${(g.membersCount||0) === 1 ? '' : 's'}</div>
       ${g.description ? `<div class="group-header-desc">${escapeHTML(g.description)}</div>` : ''}
-      <div class="group-header-actions">${actionBtn}</div>
+      <div class="group-header-actions">
+        ${actionBtn}
+        <button class="btn btn-outline" onclick="shareGroup('${g.id}','${escapeHTML((g.name||'').replace(/'/g, "\\'"))}')" title="Share group"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>
+      </div>
     </div>
   </div>`;
 }

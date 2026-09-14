@@ -226,8 +226,51 @@ async function fetchLinkPreview(url) {
   } catch (e) { return null; }
 }
 
+/* ─── YOUTUBE ───
+   Detect a YouTube link and pull out its video id, covering the formats
+   people actually paste: watch?v=, youtu.be/, /shorts/, /embed/, /live/.
+   Returns null for anything that isn't YouTube, so callers can fall back
+   to the normal link-preview card. */
+function youtubeVideoId(url) {
+  if (!url) return null;
+  let u;
+  try { u = new URL(url); } catch (e) { return null; }
+  const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '');
+
+  if (host === 'youtu.be') {
+    const id = u.pathname.slice(1).split('/')[0];
+    return /^[\w-]{11}$/.test(id) ? id : null;
+  }
+  if (host !== 'youtube.com' && host !== 'youtube-nocookie.com') return null;
+
+  const v = u.searchParams.get('v');
+  if (v && /^[\w-]{11}$/.test(v)) return v;
+
+  const m = u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+/* Inline player. Uses youtube-nocookie.com (YouTube's privacy-enhanced
+   domain) and lazy loading so a feed full of videos doesn't hammer the
+   page. No API key needed — embeds are free and unmetered, unlike the
+   YouTube Data API which has a hard daily quota. */
+function youtubeEmbedHTML(videoId) {
+  if (!videoId) return '';
+  return `<div class="yt-embed" onclick="event.stopPropagation()">
+    <iframe src="https://www.youtube-nocookie.com/embed/${escapeHTML(videoId)}"
+      title="YouTube video player" loading="lazy" allowfullscreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>`;
+}
+
 function linkPreviewCardHTML(preview, opts = {}) {
   if (!preview || !preview.url) return '';
+
+  // YouTube links become a real, playable embed rather than a static card.
+  const ytId = youtubeVideoId(preview.url);
+  if (ytId && !opts.dismissible) return youtubeEmbedHTML(ytId);
+
   const img = preview.image
     ? `<div class="link-preview-img" style="background-image:url('${escapeHTML(preview.image)}')"></div>`
     : '';
