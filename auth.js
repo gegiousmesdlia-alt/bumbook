@@ -82,6 +82,7 @@ async function onAuthChange(user) {
   const page = window.__PAGE__ || (loc ? loc.name : 'landing');
   const opts = loc ? loc.opts : {};
   window.__PAGE__ = page;
+  console.log('[auth] onAuthChange:', { user: user ? user.uid : null, url: window.location.pathname + window.location.search, resolvedPage: page, opts });
 
   loadAppConfig();
 

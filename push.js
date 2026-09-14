@@ -134,6 +134,8 @@ function updatePushNavIcon() {
   if (dot) dot.classList.toggle('on', on);
   const dotMobile = document.getElementById('pushToggleIconMobile');
   if (dotMobile) dotMobile.classList.toggle('on', on);
+  const settingsToggle = document.getElementById('settingsPushToggle');
+  if (settingsToggle) settingsToggle.checked = on;
 }
 
 async function togglePushFromNav() {

@@ -26,6 +26,13 @@ let _notifCache      = new Map(); // notifId → notif obj
 let _connStatusCache = new Map(); // reqId   → 'pending'|'connected'|'declined'
 let _notifListenerOff = null;
 
+/* ── Icons (SVG, not emoji, so they render consistently across devices) ─── */
+const ICON_BELL = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+const ICON_CHECK = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const ICON_CONNECT = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+const ICON_MAIL = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
+const ICON_CHAT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+
 /* ── Time formatter ─────────────────────────────────────────────────────── */
 function _nTime(ts) {
   if (!ts) return '';
@@ -92,32 +99,26 @@ function _rebuildNotifUI() {
   if (!container || !currentUser) return;
 
   if (_notifCache.size === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔔</div><div class="empty-state-title">No notifications yet</div></div>';
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + ICON_BELL + '</div><div class="empty-state-title">No notifications yet</div></div>';
     return;
   }
 
   // Sort all notifs newest first
   const all = [..._notifCache.values()].sort((a, b) => (b.createdAt||0) - (a.createdAt||0));
 
-  // Count unread messages per sender before dedup
-  const unreadMsgCount = {};
-  for (const n of all) {
-    if (n.type === 'new_message' && !n.read)
-      unreadMsgCount[n.fromUid] = (unreadMsgCount[n.fromUid] || 0) + 1;
-  }
-
-  // Deduplicate: one connection_request per sender, one new_message per sender
-  const seenReq = new Set(), seenMsg = new Set();
+  // Deduplicate: one connection_request per sender. new_message notifications
+  // are excluded entirely here (not just from the badge count above) — a new
+  // DM already surfaces via the Messages tab's own badge/preview, so showing
+  // it a second time in the Notifications list was pure duplication.
+  const seenReq = new Set();
   const deduped = [];
   for (const n of all) {
+    if (n.type === 'new_message') continue;
     if (n.type === 'connection_request') {
       if (seenReq.has(n.fromUid)) continue;
       seenReq.add(n.fromUid);
       // Kick off status fetch if needed (non-blocking)
       if (n.reqId && n.fromUid) _fetchConnStatus(n.reqId, n.fromUid);
-    } else if (n.type === 'new_message') {
-      if (seenMsg.has(n.fromUid)) continue;
-      seenMsg.add(n.fromUid);
     }
     deduped.push(n);
   }
@@ -152,7 +153,7 @@ function _rebuildNotifUI() {
     if (n.type === 'connection_request') {
       const st = _connStatusCache.get(n.reqId) || 'pending';
       const action = st === 'connected' || st === 'accepted'
-        ? `<div class="notif-action-done">✓ Connected</div>`
+        ? `<div class="notif-action-done">${ICON_CHECK} Connected</div>`
         : st === 'declined'
           ? `<div class="notif-action-declined">Declined</div>`
           : `<div class="notif-action-btns" id="connBtns_${n.reqId}">
@@ -160,7 +161,7 @@ function _rebuildNotifUI() {
                <button class="btn btn-outline btn-sm"  onclick="event.stopPropagation();declineConnection('${n.reqId}')">Decline</button>
              </div>`;
       html += `<div class="${cls}" onclick="openUserProfile('${n.fromUid}',event)">
-        <div class="notif-icon">🤝</div>
+        <div class="notif-icon">${ICON_CONNECT}</div>
         <div class="notif-body">
           <div class="notif-text"><strong>${escapeHTML(n.fromName||'Someone')}</strong> wants to connect with you</div>
           <div class="notif-time">${time}</div>
@@ -171,22 +172,9 @@ function _rebuildNotifUI() {
 
     if (n.type === 'connection_accepted') {
       html += `<div class="${cls}" onclick="openUserProfile('${n.fromUid}',event)">
-        <div class="notif-icon">✅</div>
+        <div class="notif-icon">${ICON_CHECK}</div>
         <div class="notif-body">
           <div class="notif-text"><strong>${escapeHTML(n.fromName||'Someone')}</strong> accepted your connection request</div>
-          <div class="notif-time">${time}</div>
-        </div>${dot}</div>`;
-      continue;
-    }
-
-    if (n.type === 'new_message') {
-      const cnt   = unreadMsgCount[n.fromUid] || 0;
-      const badge = cnt > 1 ? ` <span class="notif-msg-count">${cnt}</span>` : '';
-      const prev  = n.preview ? `: <em>${escapeHTML(n.preview)}</em>` : '';
-      html += `<div class="${cls}" onclick="openDMWith('${n.fromUid}')">
-        <div class="notif-icon">💬</div>
-        <div class="notif-body">
-          <div class="notif-text"><strong>${escapeHTML(n.fromName||'Someone')}</strong> sent you a message${prev}${badge}</div>
           <div class="notif-time">${time}</div>
         </div>${dot}</div>`;
       continue;
@@ -195,7 +183,7 @@ function _rebuildNotifUI() {
     if (n.type === 'message_request') {
       const prev = n.preview ? `: <em>${escapeHTML(n.preview)}</em>` : '';
       html += `<div class="${cls}" onclick="_switchMsgTab('requests');showPage('messages')">
-        <div class="notif-icon">✉</div>
+        <div class="notif-icon">${ICON_MAIL}</div>
         <div class="notif-body">
           <div class="notif-text"><strong>${escapeHTML(n.fromName||'Someone')}</strong> sent you a message request${prev}</div>
           <div class="notif-time">${time}</div>
@@ -205,7 +193,7 @@ function _rebuildNotifUI() {
 
     if (n.type === 'message_request_accepted') {
       html += `<div class="${cls}" onclick="openDMWith('${n.fromUid}')">
-        <div class="notif-icon">✅</div>
+        <div class="notif-icon">${ICON_CHECK}</div>
         <div class="notif-body">
           <div class="notif-text"><strong>${escapeHTML(n.fromName||'Someone')}</strong> accepted your message request</div>
           <div class="notif-time">${time}</div>
@@ -215,7 +203,7 @@ function _rebuildNotifUI() {
 
     // Generic
     html += `<div class="${cls}">
-      <div class="notif-icon">🔔</div>
+      <div class="notif-icon">${ICON_BELL}</div>
       <div class="notif-body">
         <div class="notif-text">${escapeHTML(n.text || 'New notification')}</div>
         <div class="notif-time">${time}</div>
@@ -323,7 +311,7 @@ function _rebuildConvUI() {
 
   if (_convCache.size === 0) {
     container.innerHTML = `<div class="empty-state" style="padding:40px 16px">
-      <div class="empty-state-icon">💬</div>
+      <div class="empty-state-icon">${ICON_CHAT}</div>
       <div class="empty-state-title">No messages yet</div>
       <div class="empty-state-desc">Connect with members to start chatting</div>
     </div>`;

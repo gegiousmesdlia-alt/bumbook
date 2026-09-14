@@ -158,6 +158,8 @@ function setThemeMode(mode) {
 function syncThemeSettingsUI() {
   const mode = getThemeMode();
   document.querySelectorAll('input[name="themeMode"]').forEach(r => { r.checked = (r.value === mode); });
+  const pushCheckbox = $('settingsPushToggle');
+  if (pushCheckbox && typeof isPushEnabled === 'function') pushCheckbox.checked = isPushEnabled();
 }
 // Quick nav toggle button: cycles between light/dark explicitly (same as
 // before) — full three-way control lives in Settings.

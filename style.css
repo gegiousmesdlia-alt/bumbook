@@ -957,6 +957,25 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 .form-input::placeholder { color: var(--text-muted); }
 .form-input.error { border-color: var(--danger); }
 
+/* Browsers force a yellow background on autofilled inputs (saved email/
+   password) that ignores normal `background` CSS entirely — this is very
+   likely what reads as "the login form is yellowish" regardless of theme.
+   The only way to override it is this box-shadow inset trick. */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
+  box-shadow: 0 0 0 1000px var(--bg) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+body.theme-light .form-input:-webkit-autofill,
+body.theme-light .form-input:-webkit-autofill:hover,
+body.theme-light .form-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-2) inset;
+  box-shadow: 0 0 0 1000px var(--bg-2) inset;
+}
+
 .divider {
   display: flex; align-items: center; gap: 10px;
   color: var(--text-dim); font-size: 0.83rem;
