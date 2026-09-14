@@ -1605,6 +1605,22 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
 }
 
 /* ══════════════════════════════════════════════
+   SETTINGS PAGE
+══════════════════════════════════════════════ */
+.settings-radio-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.92rem; font-weight: 600;
+  transition: border-color 0.15s;
+}
+.settings-radio-row:has(input:checked) { border-color: var(--accent); }
+.settings-radio-row input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* ══════════════════════════════════════════════
    FOLLOWERS PRIVACY TOGGLE
 ══════════════════════════════════════════════ */
 .privacy-toggle-row {
@@ -2080,6 +2096,31 @@ body.theme-light .admin-user-meta { color: var(--text-dim); }
   from { opacity: 0; transform: translateY(24px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Landing page — light theme ──
+   Everything above assumes a black backdrop (hardcoded white-based rgba
+   text/borders). This section overrides those specific colors so the
+   landing page actually goes white/light like the rest of the app when
+   the theme is switched, instead of staying stuck dark. */
+body.theme-light #page-landing { background: #fff; }
+body.theme-light .landing-topbar { background: rgba(255,255,255,0.7); }
+body.theme-light .landing-topbar-name { color: rgba(0,0,0,0.55); }
+body.theme-light .landing-headline-main {
+  background: linear-gradient(160deg, #1a160a 0%, var(--accent) 45%, #1a160a 75%, var(--accent-hover) 100%);
+  -webkit-background-clip: text; background-clip: text;
+}
+body.theme-light .landing-tagline { color: rgba(0,0,0,0.6); }
+body.theme-light .landing-cta-secondary { color: rgba(0,0,0,0.55); }
+body.theme-light .landing-cta-secondary:hover { color: rgba(0,0,0,0.8); }
+body.theme-light .landing-cta-install { color: rgba(0,0,0,0.45); border-color: rgba(0,0,0,0.12); }
+body.theme-light .landing-cta-install:hover { color: rgba(0,0,0,0.7); border-color: rgba(0,0,0,0.22); }
+body.theme-light .landing-feature {
+  color: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.08);
+}
+body.theme-light .landing-feature:hover { color: rgba(0,0,0,0.75); border-color: rgba(29,155,240,0.3); }
+body.theme-light .landing-footer { color: rgba(0,0,0,0.35); }
 
 /* ── Auth pages — branding update ── */
 .auth-logo {

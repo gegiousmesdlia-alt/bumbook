@@ -134,29 +134,47 @@ function initLandingParticles() {
   }
 }
 
-/* ─── THEME ─── */
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('theme-light');
-  localStorage.setItem('xclub_theme', isLight ? 'light' : 'dark');
+/* ─── THEME ───
+   Three modes: 'auto' (default — follow the device's OS setting live),
+   'light', 'dark'. Stored per-device only (localStorage), never synced
+   to the account. */
+function getThemeMode() {
+  return localStorage.getItem('xclub_theme') || 'auto';
+}
+function computeIsLight(mode) {
+  if (mode === 'light') return true;
+  if (mode === 'dark') return false;
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+}
+function applyTheme(isLight) {
+  document.body.classList.toggle('theme-light', isLight);
   ['themeToggleIcon', 'mobileThemeIcon'].forEach(id => { const el = $(id); if (el) el.textContent = isLight ? '🌙' : '☀'; });
 }
+function setThemeMode(mode) {
+  if (mode === 'auto') localStorage.removeItem('xclub_theme');
+  else localStorage.setItem('xclub_theme', mode);
+  applyTheme(computeIsLight(mode));
+}
+function syncThemeSettingsUI() {
+  const mode = getThemeMode();
+  document.querySelectorAll('input[name="themeMode"]').forEach(r => { r.checked = (r.value === mode); });
+}
+// Quick nav toggle button: cycles between light/dark explicitly (same as
+// before) — full three-way control lives in Settings.
+function toggleTheme() {
+  setThemeMode(document.body.classList.contains('theme-light') ? 'dark' : 'light');
+}
 function applyStoredTheme() {
-  const stored = localStorage.getItem('xclub_theme');
-  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-  const useLight = stored ? stored === 'light' : prefersLight;
+  applyTheme(computeIsLight(getThemeMode()));
 
-  if (useLight) {
-    document.body.classList.add('theme-light');
-    ['themeToggleIcon', 'mobileThemeIcon'].forEach(id => { const el = $(id); if (el) el.textContent = '🌙'; });
-  }
-
-  // If the person hasn't manually chosen a theme in this app, keep following
-  // their OS setting live (e.g. their device switches to dark mode at night).
-  if (!stored && window.matchMedia) {
+  // Keep following the OS setting live whenever mode is 'auto' — attached
+  // once at boot; the guard inside checks the CURRENT mode on every OS
+  // change, so switching back to Auto later (without a reload) resumes
+  // live-following correctly.
+  if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
-      if (localStorage.getItem('xclub_theme')) return; // they've since made an explicit choice — stop following
-      document.body.classList.toggle('theme-light', e.matches);
-      ['themeToggleIcon', 'mobileThemeIcon'].forEach(id => { const el = $(id); if (el) el.textContent = e.matches ? '🌙' : '☀'; });
+      if (getThemeMode() !== 'auto') return; // explicit choice in effect — stop following
+      applyTheme(e.matches);
     });
   }
 }

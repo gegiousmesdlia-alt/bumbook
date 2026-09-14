@@ -159,7 +159,7 @@ async function onAuthChange(user) {
       if (['landing','login','register','reset'].includes(page)) {
         showPage('feed'); // triggers onPageActivated('feed') itself
       } else {
-        onPageActivated(page, opts); // already on the right page — render it directly
+        showPage(page, opts); // makes the page div actually visible, then renders it
       }
 
     } else {
@@ -173,11 +173,11 @@ async function onAuthChange(user) {
       // any actual ACTION on that page (follow, message, like, comment) is
       // gated individually via requireVerified(), which shows a sign-in
       // prompt instead of blocking the view itself.
-      const authRequired = ['feed','discover','notifications','messages','profile','admin'];
+      const authRequired = ['feed','discover','notifications','messages','profile','settings','admin'];
       if (authRequired.includes(page)) {
         showPage('landing'); // triggers onPageActivated('landing') itself
       } else {
-        onPageActivated(page, opts);
+        showPage(page, opts); // e.g. a guest opening a shared profile/post link
       }
     }
   } catch (err) {
@@ -202,6 +202,7 @@ function onPageActivated(page, opts = {}) {
     if (page === 'notifications') renderNotifications();
     if (page === 'messages')      renderConversations();
     if (page === 'profile')       renderOwnProfile();
+    if (page === 'settings')      syncThemeSettingsUI();
     if (page === 'user-profile') {
       const uid = opts.uid || new URLSearchParams(window.location.search).get('uid');
       if (uid) renderUserProfile(uid); else showPage('feed');

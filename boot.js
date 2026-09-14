@@ -17,8 +17,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const landingPage = document.getElementById('page-landing');
   if (landingPage) landingPage.classList.add('active');
 
-  // Safety net: if Firebase auth never fires within 4s, just hide loader
-  const loaderFailsafe = setTimeout(() => { hideLoader(); }, 4000);
+  // Safety net: Firebase should report auth state within a couple of
+  // seconds even on a slow connection. If it genuinely never fires (e.g.
+  // a real network failure), don't just silently reveal the landing/login
+  // screen after a short timeout — that was the bug causing people who
+  // were still actually logged in to see a login prompt and re-enter
+  // credentials unnecessarily on a slow refresh. Instead, wait far longer
+  // before giving up, and when we do, show a clear retry option rather
+  // than pretending we know they're signed out.
+  const loaderFailsafe = setTimeout(() => {
+    console.error('[boot] Firebase auth never responded after 15s');
+    showLoaderRetry();
+  }, 15000);
 
   try {
     // Guard against duplicate init (bfcache / hot reload)

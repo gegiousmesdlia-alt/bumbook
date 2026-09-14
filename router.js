@@ -19,6 +19,7 @@ const PAGE_ROUTES = {
   notifications:  '/notifications',
   messages:       '/messages',
   profile:        '/profile',
+  settings:       '/settings',
   'user-profile': '/profile-view',
   'post-detail':  '/post',
 };
