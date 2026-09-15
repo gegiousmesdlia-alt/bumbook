@@ -22,6 +22,69 @@ function _teardownFeed() {
   _feedOldestTs = null; _feedLoading = false; _feedExhausted = false;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   "FOR YOU" — a few YouTube videos woven into the main feed, distinct from
+   the Reels tab but sourced from the same endpoint/cache and personalized
+   the same way (see _pickReelTopic in reels.js). Purely client-side —
+   these aren't Firestore posts, just rendered inline.
+═══════════════════════════════════════════════════════════════════════════ */
+async function _fetchForYouVideos(count) {
+  try {
+    const params = new URLSearchParams();
+    const topic = (typeof _pickReelTopic === 'function') ? _pickReelTopic() : '';
+    if (topic) params.set('q', topic);
+    const resp = await fetch('/api/youtube-reels?' + params.toString());
+    const data = await resp.json();
+    if (!data.configured || data.error || !data.items) return [];
+    return data.items.slice(0, count).map(v => ({ ...v, topic: data.topic || topic }));
+  } catch (e) { return []; }
+}
+
+/* Weave `videos` into `postHTMLs` at a fixed cadence (one every ~4 posts)
+   rather than clumping them all at the top or bottom. */
+function _interleaveForYou(postHTMLs, videos) {
+  if (!videos.length) return postHTMLs;
+  const GAP = 4;
+  const out = [];
+  let vi = 0;
+  postHTMLs.forEach((html, i) => {
+    out.push(html);
+    if (vi < videos.length && (i + 1) % GAP === 0) out.push(youtubeForYouCardHTML(videos[vi++]));
+  });
+  while (vi < videos.length) out.push(youtubeForYouCardHTML(videos[vi++])); // leftovers if feed was short
+  return out;
+}
+
+function youtubeForYouCardHTML(v) {
+  const embed = (typeof youtubeEmbedHTML === 'function') ? youtubeEmbedHTML(v.videoId) : '';
+  return `<div class="post yt-foryou-card">
+    <div class="post-header" style="margin-bottom:8px">
+      <div class="yt-foryou-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.5 14.5v-9l7 4.5-7 4.5z"/></svg> For You</div>
+    </div>
+    ${embed}
+    <div class="post-text" style="margin-top:8px;font-weight:600">${escapeHTML(v.title || '')}</div>
+    <div class="post-text" style="color:var(--text-dim);font-size:0.83rem">${escapeHTML(v.channel || '')}</div>
+    <div class="post-actions">
+      <div class="post-action yt-like-btn" data-yt-like="${escapeHTML(v.videoId)}" onclick="toggleForYouLike('${escapeHTML(v.videoId)}','${escapeHTML((v.topic||'').replace(/'/g,"\\'"))}')">
+        <span class="yt-like-icon">${typeof ICON_HEART !== 'undefined' ? ICON_HEART : '♡'}</span>
+        <span class="yt-like-count"></span>
+      </div>
+      <div class="post-action" onclick="shareReel('${escapeHTML(v.videoId)}')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
+    </div>
+  </div>`;
+}
+
+/* toggleReelLike expects a slide index for the Reels-tab UI; For You cards
+   have no index, they're found via the data-yt-like selector instead. This
+   thin wrapper keeps toggleReelLike's signature simple for its main caller
+   while still sharing all the actual Firestore/optimistic-update logic. */
+function toggleForYouLike(videoId, topic) {
+  if (typeof _reels !== 'undefined' && topic && !_reels.some(r => r.videoId === videoId)) {
+    _reels.push({ videoId, topic }); // so _recordReelInterest can find its topic
+  }
+  toggleReelLike(videoId, undefined);
+}
+
 async function renderFeed() {
   const container = $('feedPosts');
   if (!container) return;
@@ -92,15 +155,30 @@ async function _loadFeedPage(container, isFirst) {
     const uids = [...new Set(posts.map(p => p.authorUid).filter(u => u && u !== CLAUDE_ENGINEER_UID))];
     const profiles = {};
     await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
-    const html = posts.map(p => {
-      
+    const postHTMLs = posts.map(p => {
       if (p.authorUid === CLAUDE_ENGINEER_UID) return claudeEngineerPostHTML(p);
       return postHTML(p, profiles[p.authorUid]);
-    }).join('');
+    });
+
+    // "For You" — a couple of suggested YouTube videos woven into the first
+    // page only (re-injecting on every scroll page would get repetitive and
+    // isn't worth the extra API calls). Uses the same reels endpoint/cache
+    // and the same like system as the Reels tab, personalized the same way.
+    let html;
+    if (isFirst) {
+      const foryou = await _fetchForYouVideos(3);
+      html = _interleaveForYou(postHTMLs, foryou).join('');
+    } else {
+      html = postHTMLs.join('');
+    }
+
     let sentinel = $('feedSentinel');
     if (!sentinel) { sentinel = document.createElement('div'); sentinel.id = 'feedSentinel'; container.appendChild(sentinel); }
     const wrapper = document.createElement('div'); wrapper.innerHTML = html;
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
+    if (isFirst) container.querySelectorAll('[data-yt-like]').forEach(el => {
+      if (typeof _loadReelLikeState === 'function') _loadReelLikeState(el.dataset.ytLike);
+    });
     if (_feedExhausted) {
       sentinel.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">You\'re all caught up ✓</div>';
     }

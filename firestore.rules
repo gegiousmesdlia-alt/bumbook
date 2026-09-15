@@ -107,6 +107,22 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    /* ── reels/{videoId} ── denormalized cache of a YouTube video's like
+       count + topic, used by both the Reels tab and the main-feed "For
+       You" injections. Anyone signed in can bump the count (same
+       permissive pattern as post likes elsewhere in this app); the actual
+       "did THIS user already like it" gate lives in the likes subcollection,
+       which only that user can write. ──────────────────────────────────── */
+    match /reels/{videoId} {
+      allow read: if true;
+      allow create, update: if signedIn();
+
+      match /likes/{uid} {
+        allow read: if true;
+        allow write: if isSelf(uid);
+      }
+    }
+
     /* ── groups/{groupId} ── metadata is publicly readable (so private
        groups still show up in search/discovery by name — same as
        Facebook — only their posts and full member actions are gated),

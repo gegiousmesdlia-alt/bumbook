@@ -15,16 +15,27 @@ Go to your Vercel project → **Settings → Environment Variables** and add:
 
 | Name | Value |
 |---|---|
-| `VAPID_PUBLIC_KEY` | `BDdYlwvs8vQQ4wmxl4Anp2kOjj_Ck8acv8ExWEScrXfDrSmyOfukhvMCrPgZF2TyioXFgwfSV1sGAo2odPNcLK4` |
-| `VAPID_PRIVATE_KEY` | `8CzcnSOKDKdID3eU5vhoYCKFQ_qrHHIy3b_580-V_Ec` |
+| `VAPID_PUBLIC_KEY` | `BN6f53e4P_MXd96Tt-dKivlD3lm5MCJ-pqpyE38F6HXV5Vo6aw7T3Ot5V2Ej3xFFEAh0cxRyTmO52dHqH13dYiQ` |
+| `VAPID_PRIVATE_KEY` | `takoK09aHbKZ5_Ub6U18P03BCcF9Q2KF_2sVvUM_iNs` |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | the ENTIRE contents of the service account `.json` file from step 1, pasted as one line |
-| `CRON_SECRET` | any long random string you make up (e.g. `openssl rand -hex 32`, or just mash your keyboard) — this stops random people from triggering your send endpoint |
+| `CRON_SECRET` | `8d06af9b5a82915a732f37de2cf6b6c225442c60807bf9f0b5b53dbf2185d58e` (or generate your own with `openssl rand -hex 32`) |
 
-These VAPID keys are a real, working key pair generated specifically for
-this project — you can use them as-is, or generate your own fresh pair if
-you'd rather (any `web-push` VAPID key generator works the same way).
+This is a fresh, real, working VAPID key pair generated specifically for
+Bum Book — not reused from any other project. Treat `VAPID_PRIVATE_KEY`
+like a password (it's server-only, never shipped to the browser); the
+public key is safe to expose and is also read from this same env var by
+the frontend.
 
 Redeploy after adding the environment variables — Vercel only picks them up on a new deployment.
+
+**Important — the public key also lives in the frontend code, separately
+from the env var.** `push.js` has its own `const VAPID_PUBLIC_KEY = '...'`
+used when the browser subscribes. It must be *byte-for-byte identical* to
+the `VAPID_PUBLIC_KEY` env var the server signs with — if they ever
+diverge (e.g. you regenerate a new key pair later), every push silently
+fails, because the browser subscribed under a different key than the one
+the server is now signing with. If you swap keys in the future, update
+both places in the same commit.
 
 ## 3. Set up the free cron pinger
 1. Go to **cron-job.org** and create a free account.
