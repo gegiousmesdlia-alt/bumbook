@@ -20,10 +20,13 @@ function avatarHTML(p, size = 'md') {
   return `<div class="avatar avatar-${size}">${p?.displayName ? p.displayName.charAt(0).toUpperCase() : '?'}</div>`;
 }
 
-/* ─── VERIFIED BADGE ─── */
+/* ─── VERIFIED BADGE ───
+   Facebook-style scalloped starburst rather than a plain circle — the whole
+   badge (shape + check) is one SVG so the pointed edges aren't clipped by a
+   round CSS container. */
 function verifiedBadge(v, lg = false) {
   if (!v) return '';
-  return `<span class="verified-badge${lg ? ' lg' : ''}" title="Verified"><svg viewBox="0 0 12 12" fill="none" style="width:60%;height:60%"><polyline points="2,6 5,9 10,3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+  return `<span class="verified-badge${lg ? ' lg' : ''}" title="Verified"><svg viewBox="0 0 24 24" style="width:100%;height:100%;display:block"><path d="M 12.00 0.60 Q 14.48 2.73 17.70 2.13 Q 18.79 5.21 21.87 6.30 Q 21.27 9.52 23.40 12.00 Q 21.27 14.48 21.87 17.70 Q 18.79 18.79 17.70 21.87 Q 14.48 21.27 12.00 23.40 Q 9.52 21.27 6.30 21.87 Q 5.21 18.79 2.13 17.70 Q 2.73 14.48 0.60 12.00 Q 2.73 9.52 2.13 6.30 Q 5.21 5.21 6.30 2.13 Q 9.52 2.73 12.00 0.60 Z" fill="currentColor"/><polyline points="7.2,12.2 10.4,15.3 16.8,8.9" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>`;
 }
 
 /* ─── TOAST ─── */

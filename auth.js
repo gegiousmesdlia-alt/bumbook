@@ -204,6 +204,7 @@ function onPageActivated(page, opts = {}) {
     if (page === 'messages')      renderConversations();
     if (page === 'profile')       renderOwnProfile();
     if (page === 'settings')      syncThemeSettingsUI();
+    if (page === 'reels')         renderReels();
     if (page === 'groups')        renderGroupsPage();
     if (page === 'group-detail')  renderGroupDetail(opts.groupId);
     if (page === 'user-profile') {
@@ -221,6 +222,8 @@ function onPageActivated(page, opts = {}) {
     } else if (page === 'post-detail') {
       const postId = opts.postId || new URLSearchParams(window.location.search).get('postId');
       if (postId) renderPostDetail(postId);
+    } else if (page === 'reels') {
+      renderReels();
     } else if (page === 'groups') {
       renderGroupsPage();
     } else if (page === 'group-detail') {

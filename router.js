@@ -20,6 +20,7 @@ const PAGE_ROUTES = {
   messages:       '/messages',
   profile:        '/profile',
   settings:       '/settings',
+  reels:          '/reels',
   groups:         '/groups',
   'group-detail': '/group',
   'user-profile': '/profile-view',
@@ -43,6 +44,10 @@ const AUTH_PAGES = new Set(['landing', 'login', 'register', 'reset']);
 
 function showPage(name, opts = {}) {
   if (name === 'admin') { window.location.href = ADMIN_APP_URL; return; }
+
+  // Leaving reels: tear down the players, or audio keeps playing over
+  // whatever page the user just navigated to.
+  if (window.__PAGE__ === 'reels' && name !== 'reels' && typeof stopAllReels === 'function') stopAllReels();
 
   const target = document.getElementById('page-' + name);
   if (!target) { console.error('[router] no page found for', name); return; }
