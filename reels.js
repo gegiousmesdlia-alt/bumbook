@@ -33,7 +33,8 @@ let _reelsTopic = '';       // explicit search override, from the search box
 let _reelsLoading = false;
 let _reelsObserver = null;
 let _reelsMuted = true;
-let _reelLikesCache = {};   // videoId -> { count, liked }
+let _reelStatsCache = {};   // videoId -> { viewCount, likeCount } — REAL YouTube numbers
+let _myReelLikes = new Set(); // videoIds the current user has personally liked in-app
 
 /* Weighted-random topic pick, favoring whatever the user has liked reels
    from before. Pure random when they have no history yet or when they're
@@ -63,10 +64,26 @@ async function _recordReelInterest(topic) {
   } catch (e) {}
 }
 
+/* Set by other pages (e.g. the For You tray in feed.js) right before
+   navigating to the Reels tab, so it opens straight into that specific
+   video instead of a fresh random batch. */
+let _pendingReelStart = null;
+function openReelsAt(video) { _pendingReelStart = video; showPage('reels'); }
+
 async function renderReels() {
   const container = $('reelsContainer');
   if (!container) return;
   document.body.classList.add('reels-fullscreen');
+
+  if (_pendingReelStart) {
+    const v = _pendingReelStart; _pendingReelStart = null;
+    _reels = [{ ...v }];
+    _reelsNextPage = null;
+    container.innerHTML = '';
+    _renderReelSlides(true);
+    _loadReels(false); // top up with more behind it
+    return;
+  }
 
   // Already loaded this session — just re-attach observers and leave the
   // user where they were rather than yanking them back to the top.
@@ -88,27 +105,59 @@ async function _loadReels(isFirst = false) {
     const resp = await fetch('/api/youtube-reels?' + params.toString());
     const data = await resp.json();
 
-    if (!data.configured) { _renderReelsMessage('Reels aren\'t set up yet', 'An admin needs to add a YouTube API key. See YOUTUBE_REELS_SETUP.md'); return; }
-    if (data.error === 'quota') { _renderReelsMessage('Reels are taking a break', 'We\'ve hit today\'s YouTube limit. Try again tomorrow.'); return; }
-    if (data.error) { _renderReelsMessage('Could not load reels', data.message || 'Something went wrong.'); return; }
+    if (!data.configured) { if (isFirst) _renderReelsMessage('Reels aren\'t set up yet', 'An admin needs to add a YouTube API key. See YOUTUBE_REELS_SETUP.md'); return; }
+    if (data.error === 'quota') { if (isFirst) _renderReelsMessage('Reels are taking a break', 'We\'ve hit today\'s YouTube limit. Try again tomorrow.'); return; }
+    if (data.error) { if (isFirst) _renderReelsMessage('Could not load reels', data.message || 'Something went wrong.'); return; }
     if (!data.items || !data.items.length) {
       if (isFirst) _renderReelsMessage('No reels found', 'Try a different search.');
       return;
     }
 
-    // De-dupe — paging and topic rotation can repeat videos.
+    // De-dupe — paging, topic rotation, and a pending jump-to-video can
+    // all repeat videos.
     const seen = new Set(_reels.map(r => r.videoId));
-    const incoming = data.items.map(v => ({ ...v, topic: data.topic || topic }));
-    const fresh = incoming.filter(v => !seen.has(v.videoId));
-    _reels = isFirst ? incoming : _reels.concat(fresh);
+    const incoming = data.items.map(v => ({ ...v, topic: data.topic || topic })).filter(v => !seen.has(v.videoId));
+    _reels = isFirst ? incoming : _reels.concat(incoming);
     _reelsNextPage = data.nextPageToken || null;
 
     _renderReelSlides(isFirst);
+    _fetchReelStatsBatch(incoming.map(v => v.videoId));
+    if (currentUser) _fetchMyLikesBatch(incoming.map(v => v.videoId));
   } catch (e) {
     if (isFirst) _renderReelsMessage('Could not load reels', 'Check your connection and try again.');
   } finally {
     _reelsLoading = false;
   }
+}
+
+/* Batched — costs 1 YouTube quota unit total for up to 50 videos, vs 100
+   units if this were another search call. See api/youtube-stats.js. */
+async function _fetchReelStatsBatch(videoIds) {
+  if (!videoIds.length) return;
+  try {
+    const resp = await fetch('/api/youtube-stats?ids=' + videoIds.join(','));
+    const data = await resp.json();
+    if (data.stats) Object.assign(_reelStatsCache, data.stats);
+    videoIds.forEach(vid => {
+      const idx = _reels.findIndex(r => r.videoId === vid);
+      if (idx !== -1) _paintReelStats(vid, idx);
+    });
+  } catch (e) {}
+}
+
+/* Cheap Firestore reads (tiny per-doc marker) for "did I personally like
+   this in the app" — separate from the real YouTube counts above. */
+async function _fetchMyLikesBatch(videoIds) {
+  await Promise.allSettled(videoIds.map(async vid => {
+    try {
+      const snap = await window.XF.get('reelLikes/' + vid + '/' + currentUser.uid);
+      if (snap.exists()) {
+        _myReelLikes.add(vid);
+        const idx = _reels.findIndex(r => r.videoId === vid);
+        if (idx !== -1) _paintReelStats(vid, idx);
+      }
+    } catch (e) {}
+  }));
 }
 
 function _renderReelsMessage(title, desc) {
@@ -129,8 +178,9 @@ function _renderReelSlides(replace) {
       </div>
       <div class="reel-overlay">
         <div class="reel-info">
-          <div class="reel-channel">${escapeHTML(v.channel)}</div>
+          <div class="reel-channel" onclick="openChannel('${escapeHTML(v.channelId||'')}')">${escapeHTML(v.channel)}</div>
           <div class="reel-title">${escapeHTML(v.title)}</div>
+          <div class="reel-stats" id="reelStats${i}"></div>
         </div>
         <div class="reel-actions">
           <button class="reel-action reel-like-btn" id="reelLikeBtn${i}" onclick="toggleReelLike('${escapeHTML(v.videoId)}',${i})" title="Like">
@@ -159,6 +209,8 @@ function _renderReelSlides(replace) {
     Array.from(wrap.children).slice(existing).forEach(c => container.appendChild(c));
   }
   _attachReelObserver();
+  // Paint any stats/like state we already have cached (e.g. re-render after mute toggle)
+  _reels.forEach((v, i) => { if (_reelStatsCache[v.videoId]) _paintReelStats(v.videoId, i); });
 }
 
 const ICON_HEART = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -205,7 +257,7 @@ function _mountReel(index) {
   host.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?${params}"
     title="Reel" allow="autoplay; encrypted-media; picture-in-picture"
     allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
-  _loadReelLikeState(vid, index);
+  if (_reelStatsCache[vid]) _paintReelStats(vid, index);
 }
 
 function _unmountReel(index) {
@@ -221,74 +273,59 @@ function _unmountReel(index) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   LIKES — shared logic, used by both the Reels tab and the main feed's
-   "For You" YouTube cards (see reelLikeHTML() below and feed.js).
-   Count + "did I like it" live in Firestore under reels/{videoId}, only
-   fetched lazily (on mount / on render), never for the whole batch upfront.
+   LIKES & STATS
+   ─────────────────────────────────────────────────────────────────────────
+   The NUMBER shown is YouTube's real public like/view count (fetched in
+   _fetchReelStatsBatch above) — we can't actually affect YouTube's own
+   like count from here, so showing our own tiny in-app tally next to a
+   heart would be misleading. The heart's fill state is a separate,
+   lightweight personal marker (reels/{videoId}/likes/{uid}) that only
+   tracks "did I personally like this in Bum Book" for UI feedback and to
+   record the topic as an interest — it never changes the displayed count.
+   Shared by both the Reels tab and the main feed's "For You" cards.
 ═══════════════════════════════════════════════════════════════════════════ */
-async function _loadReelLikeState(videoId, uiIndex) {
-  if (_reelLikesCache[videoId] !== undefined) { _paintReelLike(videoId, uiIndex); return; }
-  try {
-    const snap = await window.XF.get('reels/' + videoId);
-    const count = snap.exists() ? (snap.val().likeCount || 0) : 0;
-    let liked = false;
-    if (currentUser) {
-      const likeSnap = await window.XF.get('reelLikes/' + videoId + '/' + currentUser.uid);
-      liked = likeSnap.exists();
-    }
-    _reelLikesCache[videoId] = { count, liked };
-  } catch (e) {
-    _reelLikesCache[videoId] = { count: 0, liked: false };
-  }
-  _paintReelLike(videoId, uiIndex);
-}
+function _paintReelStats(videoId, uiIndex) {
+  const stats = _reelStatsCache[videoId];
+  const liked = _myReelLikes.has(videoId);
 
-function _paintReelLike(videoId, uiIndex) {
-  const state = _reelLikesCache[videoId]; if (!state) return;
   if (uiIndex !== undefined) {
     const icon = $('reelLikeIcon' + uiIndex);
     const count = $('reelLikeCount' + uiIndex);
     const btn = $('reelLikeBtn' + uiIndex);
-    if (icon) icon.innerHTML = state.liked ? ICON_HEART_FILLED : ICON_HEART;
-    if (count) count.textContent = state.count > 0 ? formatCount(state.count) : '';
-    if (btn) btn.classList.toggle('liked', state.liked);
+    const statsEl = $('reelStats' + uiIndex);
+    if (icon) icon.innerHTML = liked ? ICON_HEART_FILLED : ICON_HEART;
+    if (count && stats && stats.likeCount != null) count.textContent = formatCount(stats.likeCount);
+    if (btn) btn.classList.toggle('liked', liked);
+    if (statsEl && stats) statsEl.textContent = stats.viewCount ? formatCount(stats.viewCount) + ' views' : '';
   }
   // Also paint any For You feed card for this same video, if present.
   document.querySelectorAll(`[data-yt-like="${CSS.escape(videoId)}"]`).forEach(el => {
     const icon = el.querySelector('.yt-like-icon');
     const count = el.querySelector('.yt-like-count');
-    if (icon) icon.innerHTML = state.liked ? ICON_HEART_FILLED : ICON_HEART;
-    if (count) count.textContent = state.count > 0 ? formatCount(state.count) : '';
-    el.classList.toggle('liked', state.liked);
+    if (icon) icon.innerHTML = liked ? ICON_HEART_FILLED : ICON_HEART;
+    if (count && stats && stats.likeCount != null) count.textContent = formatCount(stats.likeCount);
+    el.classList.toggle('liked', liked);
   });
 }
 
 async function toggleReelLike(videoId, uiIndex) {
   if (!requireVerified('like this')) return;
-  const state = _reelLikesCache[videoId] || { count: 0, liked: false };
-  const wasLiked = state.liked;
+  const wasLiked = _myReelLikes.has(videoId);
   // Optimistic update — feels instant, corrected below if the write fails.
-  state.liked = !wasLiked;
-  state.count = Math.max(0, state.count + (wasLiked ? -1 : 1));
-  _reelLikesCache[videoId] = state;
-  _paintReelLike(videoId, uiIndex);
+  if (wasLiked) _myReelLikes.delete(videoId); else _myReelLikes.add(videoId);
+  _paintReelStats(videoId, uiIndex);
 
   try {
     if (wasLiked) {
       await window.XF.fs.collection('reels').doc(videoId).collection('likes').doc(currentUser.uid).delete();
-      await window.XF.update('reels/' + videoId, { likeCount: firebase.firestore.FieldValue.increment(-1) });
     } else {
       await window.XF.set('reelLikes/' + videoId + '/' + currentUser.uid, { uid: currentUser.uid, likedAt: Date.now() });
-      await window.XF.update('reels/' + videoId, { likeCount: firebase.firestore.FieldValue.increment(1) });
       const v = _reels.find(r => r.videoId === videoId);
       if (v && v.topic) _recordReelInterest(v.topic);
     }
   } catch (e) {
-    // Roll back on failure
-    state.liked = wasLiked;
-    state.count = Math.max(0, state.count + (wasLiked ? 1 : -1));
-    _reelLikesCache[videoId] = state;
-    _paintReelLike(videoId, uiIndex);
+    if (wasLiked) _myReelLikes.add(videoId); else _myReelLikes.delete(videoId);
+    _paintReelStats(videoId, uiIndex);
     showToast('Could not save like');
   }
 }
@@ -304,6 +341,13 @@ function toggleReelMute() {
     if (slide.querySelector('iframe')) { _unmountReel(idx); _mountReel(idx); }
   });
   document.querySelectorAll('#reelMuteIcon').forEach(el => { el.innerHTML = _reelsMuted ? ICON_MUTED : ICON_UNMUTED; });
+}
+
+function toggleReelsSearch() {
+  const bar = $('reelsSearchBar'); if (!bar) return;
+  const showing = bar.style.display !== 'none';
+  bar.style.display = showing ? 'none' : 'flex';
+  if (!showing) { const input = bar.querySelector('.reels-search'); if (input) input.focus(); }
 }
 
 function refreshReels() {

@@ -78,6 +78,7 @@ module.exports = async (req, res) => {
         videoId: it.id.videoId,
         title: it.snippet?.title || '',
         channel: it.snippet?.channelTitle || '',
+        channelId: it.snippet?.channelId || '',
         publishedAt: it.snippet?.publishedAt || '',
         thumb: it.snippet?.thumbnails?.high?.url || it.snippet?.thumbnails?.default?.url || ''
       }));

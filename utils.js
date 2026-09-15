@@ -259,8 +259,9 @@ function youtubeVideoId(url) {
    YouTube Data API which has a hard daily quota. */
 function youtubeEmbedHTML(videoId) {
   if (!videoId) return '';
+  const params = new URLSearchParams({ rel: '0', playsinline: '1' });
   return `<div class="yt-embed" onclick="event.stopPropagation()">
-    <iframe src="https://www.youtube-nocookie.com/embed/${escapeHTML(videoId)}"
+    <iframe src="https://www.youtube-nocookie.com/embed/${escapeHTML(videoId)}?${params}"
       title="YouTube video player" loading="lazy" allowfullscreen
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       referrerpolicy="strict-origin-when-cross-origin"></iframe>

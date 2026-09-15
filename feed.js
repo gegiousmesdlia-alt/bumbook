@@ -23,10 +23,13 @@ function _teardownFeed() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   "FOR YOU" — a few YouTube videos woven into the main feed, distinct from
-   the Reels tab but sourced from the same endpoint/cache and personalized
-   the same way (see _pickReelTopic in reels.js). Purely client-side —
-   these aren't Firestore posts, just rendered inline.
+   "FOR YOU" REELS TRAY — a horizontal row of reel thumbnails at the top of
+   the feed, Facebook-style (tap one → jump into the full Reels tab at that
+   video). This is deliberately NOT a live embed sitting in the feed: full
+   iframes there are heavier, and YouTube's own embed chrome (the logo/
+   title in the paused thumbnail state) can hand off to the YouTube app on
+   a tap — a plain thumbnail here sidesteps that entirely, and matches how
+   Facebook actually shows its own Reels tray.
 ═══════════════════════════════════════════════════════════════════════════ */
 async function _fetchForYouVideos(count) {
   try {
@@ -40,49 +43,23 @@ async function _fetchForYouVideos(count) {
   } catch (e) { return []; }
 }
 
-/* Weave `videos` into `postHTMLs` at a fixed cadence (one every ~4 posts)
-   rather than clumping them all at the top or bottom. */
-function _interleaveForYou(postHTMLs, videos) {
-  if (!videos.length) return postHTMLs;
-  const GAP = 4;
-  const out = [];
-  let vi = 0;
-  postHTMLs.forEach((html, i) => {
-    out.push(html);
-    if (vi < videos.length && (i + 1) % GAP === 0) out.push(youtubeForYouCardHTML(videos[vi++]));
-  });
-  while (vi < videos.length) out.push(youtubeForYouCardHTML(videos[vi++])); // leftovers if feed was short
-  return out;
-}
-
-function youtubeForYouCardHTML(v) {
-  const embed = (typeof youtubeEmbedHTML === 'function') ? youtubeEmbedHTML(v.videoId) : '';
-  return `<div class="post yt-foryou-card">
-    <div class="post-header" style="margin-bottom:8px">
-      <div class="yt-foryou-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.5 14.5v-9l7 4.5-7 4.5z"/></svg> For You</div>
+function forYouTrayHTML(videos) {
+  if (!videos.length) return '';
+  window._forYouTrayVideos = videos; // referenced by index below, avoids embedding raw JSON in HTML attributes
+  const cards = videos.map((v, i) => `
+    <div class="fy-reel-card" onclick="openReelsAt(window._forYouTrayVideos[${i}])">
+      <img class="fy-reel-thumb" src="${escapeHTML(v.thumb)}" alt="" loading="lazy">
+      <div class="fy-reel-play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="fy-reel-title">${escapeHTML(v.title || '')}</div>
+    </div>`).join('');
+  return `<div class="fy-reel-tray">
+    <div class="fy-reel-tray-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg>
+      <span>Reels</span>
+      <span class="fy-reel-tray-more" onclick="event.stopPropagation();showPage('reels')">See all</span>
     </div>
-    ${embed}
-    <div class="post-text" style="margin-top:8px;font-weight:600">${escapeHTML(v.title || '')}</div>
-    <div class="post-text" style="color:var(--text-dim);font-size:0.83rem">${escapeHTML(v.channel || '')}</div>
-    <div class="post-actions">
-      <div class="post-action yt-like-btn" data-yt-like="${escapeHTML(v.videoId)}" onclick="toggleForYouLike('${escapeHTML(v.videoId)}','${escapeHTML((v.topic||'').replace(/'/g,"\\'"))}')">
-        <span class="yt-like-icon">${typeof ICON_HEART !== 'undefined' ? ICON_HEART : '♡'}</span>
-        <span class="yt-like-count"></span>
-      </div>
-      <div class="post-action" onclick="shareReel('${escapeHTML(v.videoId)}')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
-    </div>
+    <div class="fy-reel-tray-scroll">${cards}</div>
   </div>`;
-}
-
-/* toggleReelLike expects a slide index for the Reels-tab UI; For You cards
-   have no index, they're found via the data-yt-like selector instead. This
-   thin wrapper keeps toggleReelLike's signature simple for its main caller
-   while still sharing all the actual Firestore/optimistic-update logic. */
-function toggleForYouLike(videoId, topic) {
-  if (typeof _reels !== 'undefined' && topic && !_reels.some(r => r.videoId === videoId)) {
-    _reels.push({ videoId, topic }); // so _recordReelInterest can find its topic
-  }
-  toggleReelLike(videoId, undefined);
 }
 
 async function renderFeed() {
@@ -160,14 +137,13 @@ async function _loadFeedPage(container, isFirst) {
       return postHTML(p, profiles[p.authorUid]);
     });
 
-    // "For You" — a couple of suggested YouTube videos woven into the first
-    // page only (re-injecting on every scroll page would get repetitive and
-    // isn't worth the extra API calls). Uses the same reels endpoint/cache
-    // and the same like system as the Reels tab, personalized the same way.
+    // "For You" tray — a horizontal row of reel thumbnails above the feed,
+    // first page only. Uses the same reels endpoint/cache and the same
+    // personalization as the Reels tab.
     let html;
     if (isFirst) {
-      const foryou = await _fetchForYouVideos(3);
-      html = _interleaveForYou(postHTMLs, foryou).join('');
+      const foryou = await _fetchForYouVideos(8);
+      html = forYouTrayHTML(foryou) + postHTMLs.join('');
     } else {
       html = postHTMLs.join('');
     }
@@ -176,9 +152,6 @@ async function _loadFeedPage(container, isFirst) {
     if (!sentinel) { sentinel = document.createElement('div'); sentinel.id = 'feedSentinel'; container.appendChild(sentinel); }
     const wrapper = document.createElement('div'); wrapper.innerHTML = html;
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
-    if (isFirst) container.querySelectorAll('[data-yt-like]').forEach(el => {
-      if (typeof _loadReelLikeState === 'function') _loadReelLikeState(el.dataset.ytLike);
-    });
     if (_feedExhausted) {
       sentinel.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">You\'re all caught up ✓</div>';
     }

@@ -21,6 +21,7 @@ const PAGE_ROUTES = {
   profile:        '/profile',
   settings:       '/settings',
   reels:          '/reels',
+  channel:        '/channel',
   groups:         '/groups',
   'group-detail': '/group',
   'user-profile': '/profile-view',
@@ -37,6 +38,7 @@ function pageFromLocation() {
   if (params.get('uid')) opts.uid = params.get('uid');
   if (params.get('postId')) opts.postId = params.get('postId');
   if (params.get('groupId')) opts.groupId = params.get('groupId');
+  if (params.get('channelId')) opts.channelId = params.get('channelId');
   return { name, opts };
 }
 
@@ -72,6 +74,7 @@ function showPage(name, opts = {}) {
   if (opts.uid) params.set('uid', opts.uid);
   if (opts.postId) params.set('postId', opts.postId);
   if (opts.groupId) params.set('groupId', opts.groupId);
+  if (opts.channelId) params.set('channelId', opts.channelId);
   const qs = params.toString();
   if (qs) url += '?' + qs;
 

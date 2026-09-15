@@ -205,6 +205,7 @@ function onPageActivated(page, opts = {}) {
     if (page === 'profile')       renderOwnProfile();
     if (page === 'settings')      syncThemeSettingsUI();
     if (page === 'reels')         renderReels();
+    if (page === 'channel')       renderChannelPage(opts.channelId);
     if (page === 'groups')        renderGroupsPage();
     if (page === 'group-detail')  renderGroupDetail(opts.groupId);
     if (page === 'user-profile') {
@@ -224,6 +225,8 @@ function onPageActivated(page, opts = {}) {
       if (postId) renderPostDetail(postId);
     } else if (page === 'reels') {
       renderReels();
+    } else if (page === 'channel') {
+      renderChannelPage(opts.channelId);
     } else if (page === 'groups') {
       renderGroupsPage();
     } else if (page === 'group-detail') {
