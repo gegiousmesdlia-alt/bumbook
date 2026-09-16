@@ -28,13 +28,23 @@ const DEFAULT_TOPICS = [
   'movie scenes', 'satisfying videos'
 ];
 
+// Days since epoch — same value for everyone hitting this server on the
+// same calendar day (UTC), used so the no-topic fallback above is
+// consistent across requests instead of independently randomized.
+function _dayIndex() {
+  return Math.floor(Date.now() / 86400000);
+}
+
 module.exports = async (req, res) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
 
   // CDN cache: one shared upstream fetch serves everyone for 30 min, and
   // keeps serving slightly-stale results for a day while it refreshes in
   // the background. This is what keeps the daily quota survivable.
-  res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=86400');
+  // Bumped from 30min to 3hrs — see YOUTUBE_REELS_SETUP.md's "reducing usage"
+  // section for the reasoning: content doesn't need to be that fresh, and
+  // every hour added here multiplies how many users share one API call.
+  res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=172800');
 
   if (!apiKey) {
     res.status(200).json({ items: [], configured: false });
@@ -43,7 +53,11 @@ module.exports = async (req, res) => {
 
   const q = (req.query.q || '').trim();
   const pageToken = (req.query.pageToken || '').trim();
-  const topic = q || DEFAULT_TOPICS[Math.floor(Math.random() * DEFAULT_TOPICS.length)];
+  // No explicit topic (shouldn't normally happen — the client always sends
+  // one — but if it ever does) falls back to a topic picked from today's
+  // date rather than Math.random(), so repeated no-topic hits on the same
+  // day share one cache entry instead of each rolling their own.
+  const topic = q || DEFAULT_TOPICS[_dayIndex() % DEFAULT_TOPICS.length];
 
   try {
     const params = new URLSearchParams({

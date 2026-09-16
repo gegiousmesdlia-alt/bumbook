@@ -17,7 +17,7 @@ const TIMEOUT_MS = 8000;
 
 module.exports = async (req, res) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
-  res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', 's-maxage=10800, stale-while-revalidate=172800'); // 3hrs
 
   if (!apiKey) { res.status(200).json({ configured: false }); return; }
 

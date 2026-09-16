@@ -15,7 +15,7 @@ const TIMEOUT_MS = 8000;
 
 module.exports = async (req, res) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
-  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', 's-maxage=21600, stale-while-revalidate=172800'); // 6hrs — view/like counts don't need to be minute-fresh
 
   if (!apiKey) { res.status(200).json({ stats: {}, configured: false }); return; }
 

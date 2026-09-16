@@ -201,7 +201,10 @@ function onPageActivated(page, opts = {}) {
     if (page === 'feed')          { renderFeed(); setTimeout(runScheduledPosts, 5000); }
     if (page === 'discover')      renderDiscover();
     if (page === 'notifications') renderNotifications();
-    if (page === 'messages')      renderConversations();
+    if (page === 'messages') {
+      const dmUid = opts.uid || new URLSearchParams(window.location.search).get('uid');
+      if (dmUid) openDMWith(dmUid); else renderConversations();
+    }
     if (page === 'profile')       renderOwnProfile();
     if (page === 'settings')      syncThemeSettingsUI();
     if (page === 'reels')         renderReels();

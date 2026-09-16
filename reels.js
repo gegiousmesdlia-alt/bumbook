@@ -38,16 +38,22 @@ let _myReelLikes = new Set(); // videoIds the current user has personally liked 
 
 /* Weighted-random topic pick, favoring whatever the user has liked reels
    from before. Pure random when they have no history yet or when they're
-   actively searching for something specific. */
+   actively searching for something specific.
+
+   The "discovery" branch (no interest match) is deliberately NOT
+   Math.random() — it's bucketed to the same 3-hour window the server
+   caches on, so everyone browsing during that window converges on the
+   same topic and shares one cached API call instead of each visitor
+   rolling their own and fragmenting the cache. It still rotates through
+   the topic list several times a day, just not on every single request. */
 function _pickReelTopic() {
   if (_reelsTopic) return _reelsTopic; // explicit search always wins
   const interests = (currentProfile && currentProfile.reelInterests) || [];
-  // 65% of the time, if we have interest data, pick from what they've
-  // liked before; otherwise (or the other 35%, for discovery) pick fresh.
   if (interests.length && Math.random() < 0.65) {
     return interests[Math.floor(Math.random() * interests.length)];
   }
-  return REEL_TOPICS[Math.floor(Math.random() * REEL_TOPICS.length)];
+  const windowIndex = Math.floor(Date.now() / (3 * 60 * 60 * 1000)); // matches server cache TTL
+  return REEL_TOPICS[windowIndex % REEL_TOPICS.length];
 }
 
 /* Record that the user engaged with a topic, so future fetches lean

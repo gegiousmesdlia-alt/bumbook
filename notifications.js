@@ -400,6 +400,7 @@ function renderConversations() {
     return;
   }
   _rebuildConvUI();
+  if (typeof renderPushOffBanner === 'function') renderPushOffBanner();
 }
 
 // Badge-only refresh (called externally by markRead etc.)

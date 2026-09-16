@@ -44,6 +44,30 @@ function isPushEnabled() {
   return !!localStorage.getItem('xclub_push_sub_id');
 }
 
+/* Warns on the Messages page when push is off, since that's the one place
+   missing a notification has the most direct consequence — a message sits
+   unseen with no other signal. Dismissible per session (sessionStorage),
+   re-checked and re-shown on the next full app load if still off. */
+function renderPushOffBanner() {
+  const el = $('pushOffBanner'); if (!el) return;
+  const dismissed = sessionStorage.getItem('xclub_push_banner_dismissed');
+  if (!currentUser || dismissed || !pushSupported() || isPushEnabled()) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="push-off-banner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span>Your notifications are off — if you get a message, you won't know unless you check the app.</span>
+    <button onclick="_pushOffBannerEnable()">Turn on</button>
+    <span class="push-off-banner-close" onclick="dismissPushOffBanner()">✕</span>
+  </div>`;
+}
+async function _pushOffBannerEnable() {
+  await enablePushNotifications();
+  renderPushOffBanner();
+}
+function dismissPushOffBanner() {
+  sessionStorage.setItem('xclub_push_banner_dismissed', '1');
+  const el = $('pushOffBanner'); if (el) el.innerHTML = '';
+}
+
 async function enablePushNotifications() {
   if (!pushSupported()) { showToast('Push notifications aren\'t supported on this browser/device'); return false; }
   if (!currentUser) { requireVerified('enable notifications'); return false; }
