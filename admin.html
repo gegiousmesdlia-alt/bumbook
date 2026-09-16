@@ -63,6 +63,7 @@
           <div class="admin-tab" onclick="switchAdminTab('posts', this)">❤ Likes</div>
           <div class="admin-tab" onclick="switchAdminTab('stats', this)">▤ Stats</div>
           <div class="admin-tab" onclick="switchAdminTab('settings', this)">⚙ Settings</div>
+          <div class="admin-tab" onclick="switchAdminTab('loadtest', this)">Load Test</div>
         </div>
         <div class="admin-content">
           <div id="adminTabUsers">
@@ -81,6 +82,23 @@
           <div id="adminTabSettings" style="display:none">
             <div class="admin-section-title" style="margin-bottom:16px">⚙ Platform Settings</div>
             <div id="adminSettingsContent"><div class="loading-center"><div class="spinner"></div></div></div>
+          </div>
+          <div id="adminTabLoadTest" style="display:none">
+            <div class="admin-section-title" style="margin-bottom:16px">Load Test Data</div>
+            <div class="loadtest-panel">
+              <div class="loadtest-info">
+                <strong>What this is:</strong> load-test accounts created by <code>scripts/seed-test-users.js</code>,
+                run locally to check the app holds up under real volume before going public. Every single record
+                — user, connection, group, comment — is tagged <code>seedTest: true</code> in the database. This
+                panel only ever touches records with that tag; nothing else can be affected. Profile photos come
+                from randomuser.me (a free service built for realistic mockup/test-user photos), gender-matched
+                to each generated name and de-duplicated so accounts don't share a photo unless the pool runs out.
+              </div>
+              <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)" onclick="openDeleteSeedModal()">
+                Delete All Load Test Data
+              </button>
+              <div id="loadtestProgress" style="margin-top:14px"></div>
+            </div>
           </div>
           <div id="adminTabStats" style="display:none">
             <div class="admin-stat-bar" id="adminStatBar">
@@ -132,6 +150,19 @@
 </div>
 <button class="mobile-push-fab nav-push-btn" id="navPushBtnMobile" onclick="togglePushFromNav()" title="Notifications" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="push-dot" id="pushToggleIconMobile"></span></button>
 <button class="mobile-theme-fab" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme"><span id="mobileThemeIcon">☀</span></button>
+<div class="paywall-modal" id="deleteSeedModal" onclick="if(event.target===this)closeDeleteSeedModal()">
+  <div class="paywall-card" style="text-align:left">
+    <div class="paywall-title" style="text-align:center;color:var(--danger)">Delete all load test data?</div>
+    <p style="font-size:0.9rem;color:var(--text-dim);margin-top:12px;line-height:1.5">
+      This permanently deletes every account, connection, group, and comment tagged as load-test data.
+      It cannot be undone. Only do this once you're actually finished testing.
+    </p>
+    <p style="font-size:0.9rem;margin-top:14px">Type <strong>DELETE</strong> below to confirm:</p>
+    <input type="text" id="deleteSeedConfirmInput" class="form-input" style="margin-top:8px" placeholder="Type DELETE" oninput="_onDeleteSeedInput(this.value)">
+    <button class="btn btn-block btn-lg" id="deleteSeedConfirmBtn" style="margin-top:14px;background:var(--danger);color:#fff" disabled onclick="confirmDeleteSeedData()">Delete everything</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="closeDeleteSeedModal()">Cancel</button>
+  </div>
+</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>

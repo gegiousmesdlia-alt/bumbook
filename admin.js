@@ -11,12 +11,64 @@ function switchAdminTab(tab, el) {
   $('adminTabPosts').style.display    = tab === 'posts'    ? 'block' : 'none';
   $('adminTabStats').style.display    = tab === 'stats'    ? 'block' : 'none';
   $('adminTabSettings').style.display = tab === 'settings' ? 'block' : 'none';
+  $('adminTabLoadTest').style.display = tab === 'loadtest' ? 'block' : 'none';
   if (tab === 'stats')    { loadAdminStats(); loadScheduledPostsAdmin(); }
   if (tab === 'posts')    { adminLoadPosts(); }
   if (tab === 'feed')     { adminLoadFeed(); }
   if (tab === 'settings') { loadAdminSettings(); }
 }
 
+/* ══════════════════════════════════════════════
+   LOAD TEST DATA — delete flow
+   Typed "DELETE" confirmation on purpose (not just a click-through), since
+   this is explicitly meant to be hard to trigger by accident mid-testing.
+══════════════════════════════════════════════ */
+function openDeleteSeedModal() {
+  const m = $('deleteSeedModal'); if (m) m.classList.add('open');
+  const input = $('deleteSeedConfirmInput'); if (input) input.value = '';
+  const btn = $('deleteSeedConfirmBtn'); if (btn) btn.disabled = true;
+}
+function closeDeleteSeedModal() {
+  const m = $('deleteSeedModal'); if (m) m.classList.remove('open');
+}
+function _onDeleteSeedInput(val) {
+  const btn = $('deleteSeedConfirmBtn'); if (btn) btn.disabled = val.trim() !== 'DELETE';
+}
+
+async function confirmDeleteSeedData() {
+  closeDeleteSeedModal();
+  const progress = $('loadtestProgress');
+  if (progress) progress.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+
+  let token;
+  try { token = await window.XF.auth.currentUser.getIdToken(); }
+  catch (e) { if (progress) progress.innerHTML = '<div style="color:var(--danger)">Could not verify admin session — try refreshing and signing in again.</div>'; return; }
+
+  const totals = { users: 0, groups: 0, comments: 0 };
+  for (const type of ['users', 'groups', 'comments']) {
+    let hasMore = true;
+    while (hasMore) {
+      if (progress) progress.innerHTML = `<div style="color:var(--text-dim)">Deleting ${type}… (${totals.users + totals.groups + totals.comments} removed so far)</div>`;
+      try {
+        const resp = await fetch('/api/admin-delete-seed-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ type })
+        });
+        const data = await resp.json();
+        if (data.error) { if (progress) progress.innerHTML = `<div style="color:var(--danger)">${escapeHTML(data.error)}</div>`; return; }
+        totals[type] += data.deleted || 0;
+        hasMore = !!data.hasMore;
+        if ((data.deleted || 0) === 0) hasMore = false; // safety: stop if a batch deletes nothing but still claims more
+      } catch (e) {
+        if (progress) progress.innerHTML = '<div style="color:var(--danger)">Delete failed — check your connection and try again.</div>';
+        return;
+      }
+    }
+  }
+  if (progress) progress.innerHTML = `<div style="color:var(--success)">Done. Deleted ${totals.users} users, ${totals.groups} groups, ${totals.comments} comments.</div>`;
+  showToast('Load test data deleted');
+}
 /* ══════════════════════════════════════════════
    USER MANAGEMENT
 ══════════════════════════════════════════════ */

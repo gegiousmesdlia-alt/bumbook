@@ -1530,6 +1530,21 @@ body.theme-light .form-input:-webkit-autofill:focus {
   display: flex; align-items: center; gap: 8px;
 }
 
+.loadtest-panel { max-width: 520px; }
+.loadtest-info {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 0.85rem; color: var(--text-dim); line-height: 1.5;
+  margin-bottom: 16px;
+}
+.loadtest-info code {
+  background: var(--bg-3);
+  padding: 1px 5px; border-radius: 4px;
+  font-size: 0.8em;
+}
+
 /* ── Admin Feed Posts ── */
 .admin-feed-post {
   background: var(--bg-2);
