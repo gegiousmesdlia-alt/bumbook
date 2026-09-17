@@ -21,12 +21,27 @@
  *     "acting" afterward.
  *
  * BEFORE YOU RUN THIS:
- *   1. Put your Firebase service account JSON at ./serviceAccountKey.json
- *      (same file/creds as FIREBASE_SERVICE_ACCOUNT_JSON in Vercel — copy
- *      it locally, this script is NOT meant to run on Vercel).
- *   2. npm install firebase-admin (from the project root).
- *   3. Node 18 or newer (uses the built-in fetch() for profile photos).
- *   4. node scripts/seed-test-users.js
+ *   1. Download your Firebase service account JSON (Firebase Console ->
+ *      Project Settings -> Service Accounts -> Generate new private key)
+ *      and save it OUTSIDE this project folder entirely — e.g. your
+ *      Desktop, or a folder like ~/secrets/. NOT inside bumbook/, even
+ *      temporarily. This project folder is what you zip up and deploy —
+ *      anything sitting in it can end up pushed to GitHub or Vercel by
+ *      accident, which is exactly how a key gets leaked. Keeping it
+ *      physically outside this folder means that can't happen no matter
+ *      what gets zipped or committed.
+ *   2. Point this script at that file by setting an environment variable
+ *      before running it:
+ *        macOS/Linux:   export GOOGLE_APPLICATION_CREDENTIALS=~/secrets/serviceAccountKey.json
+ *        Windows (PS):  $env:GOOGLE_APPLICATION_CREDENTIALS="C:\secrets\serviceAccountKey.json"
+ *   3. npm install firebase-admin (from the project root).
+ *   4. Node 18 or newer (uses the built-in fetch() for profile photos).
+ *   5. node scripts/seed-test-users.js
+ *
+ * (If GOOGLE_APPLICATION_CREDENTIALS isn't set, this script will also look
+ * for serviceAccountKey.json inside THIS project folder as a fallback —
+ * but every time it uses that fallback it prints a loud warning, because
+ * that's the location that gets zipped and deployed. Prefer the env var.)
  *
  * WRITE BUDGET — Firestore's free (Spark) plan caps you at 20,000 writes
  * PER DAY. This script is tuned to use roughly 17,000-18,000 of that in
@@ -53,12 +68,31 @@ const DAILY_WRITE_SOFT_CAP = 18000;   // stop well short of Firestore's 20k hard
 const INCLUDE_PROFILE_PHOTOS = true;  // set false to skip the randomuser.me fetch entirely
 
 /* ── Load service account ──────────────────────────────────────────────── */
-const keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
-if (!fs.existsSync(keyPath)) {
-  console.error(`\nMissing ${keyPath}`);
-  console.error('Download it from Firebase Console -> Project Settings -> Service Accounts');
-  console.error('-> Generate new private key, save it there, then run this again.\n');
-  process.exit(1);
+let keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (keyPath) {
+  if (!fs.existsSync(keyPath)) {
+    console.error(`\nGOOGLE_APPLICATION_CREDENTIALS is set to ${keyPath} but that file doesn't exist.\n`);
+    process.exit(1);
+  }
+} else {
+  // Fallback only — this path IS inside the project folder, which is what
+  // gets zipped/deployed, so using it is exactly the mistake this script
+  // is designed to help you avoid. Warn loudly every time it's used.
+  keyPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+  if (fs.existsSync(keyPath)) {
+    console.warn('\n⚠️  WARNING: reading the service account key from inside the project folder');
+    console.warn('   (' + keyPath + ').');
+    console.warn('   This folder is what you zip up and deploy — a key sitting here can get');
+    console.warn('   committed to GitHub or uploaded to Vercel by accident. Move it outside this');
+    console.warn('   project folder and set GOOGLE_APPLICATION_CREDENTIALS instead. Continuing');
+    console.warn('   this run anyway, but please fix this before running again.\n');
+  } else {
+    console.error(`\nNo service account key found.`);
+    console.error('Set GOOGLE_APPLICATION_CREDENTIALS to point at your key file (recommended —');
+    console.error('see the instructions at the top of this file), or place serviceAccountKey.json');
+    console.error(`in the project root as a fallback (${keyPath}).\n`);
+    process.exit(1);
+  }
 }
 const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });

@@ -129,6 +129,7 @@ async function onAuthChange(user) {
       typeof updateSidebarVerifyBtn === 'function' && updateSidebarVerifyBtn();
       typeof _updateMsgRequestBadge === 'function' && _updateMsgRequestBadge();
       typeof _initPresence === 'function' && _initPresence(user.uid);
+      typeof _silentlyRefreshPushSubscription === 'function' && _silentlyRefreshPushSubscription();
 
       hideLoader();
 

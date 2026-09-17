@@ -68,6 +68,37 @@ function dismissPushOffBanner() {
   const el = $('pushOffBanner'); if (el) el.innerHTML = '';
 }
 
+/* Silently re-subscribes on load if push was previously enabled, without
+   any toast or user interaction — this is what actually repairs an
+   already-stale subscription sitting in someone's browser (like the one
+   this exact bug just caused), since the person has no way to know it's
+   stale and nothing here should nag them about a problem they didn't
+   cause. Safe/cheap to run every login: if the subscription is already
+   correct, unsubscribe+resubscribe just recreates the same thing. */
+let _pushRefreshedThisSession = false;
+async function _silentlyRefreshPushSubscription() {
+  if (_pushRefreshedThisSession) return;
+  _pushRefreshedThisSession = true;
+  if (!isPushEnabled() || !pushSupported() || !currentUser) return;
+  if (Notification.permission !== 'granted') return; // don't re-prompt; if they revoked it, respect that
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    const ref = await window.XF.push('pushSubscriptions', {
+      uid: currentUser.uid,
+      subscription: JSON.parse(JSON.stringify(subscription)),
+      createdAt: Date.now(),
+    });
+    localStorage.setItem('xclub_push_sub_id', ref.key);
+  } catch (e) { /* fail silently — worst case, still stale until next attempt */ }
+}
+
 async function enablePushNotifications() {
   if (!pushSupported()) { showToast('Push notifications aren\'t supported on this browser/device'); return false; }
   if (!currentUser) { requireVerified('enable notifications'); return false; }
@@ -79,13 +110,20 @@ async function enablePushNotifications() {
     const registration = await navigator.serviceWorker.register('/sw.js');
     await navigator.serviceWorker.ready;
 
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-    }
+    // Always start fresh rather than reusing whatever subscription the
+    // browser already has. A subscription is cryptographically tied to
+    // the VAPID public key it was created under — if that key ever
+    // changes (e.g. moving off a previous project's keys), an old
+    // subscription silently stops working even though it still "exists,"
+    // and the app has no way to tell just by looking at it. Unsubscribing
+    // and resubscribing here guarantees the subscription always matches
+    // the key actually in use right now.
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) await existing.unsubscribe();
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
 
     const ref = await window.XF.push('pushSubscriptions', {
       uid: currentUser.uid,
