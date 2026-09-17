@@ -44,11 +44,14 @@ async function confirmDeleteSeedData() {
   try { token = await window.XF.auth.currentUser.getIdToken(); }
   catch (e) { if (progress) progress.innerHTML = '<div style="color:var(--danger)">Could not verify admin session — try refreshing and signing in again.</div>'; return; }
 
-  const totals = { users: 0, groups: 0, comments: 0 };
-  for (const type of ['users', 'groups', 'comments']) {
+  const totals = { connectionRequests: 0, connections: 0, likes: 0, comments: 0, groups: 0, users: 0 };
+  // Requests/connections/likes/comments cleaned up before users, so a
+  // deleted seed user doesn't leave orphaned edges/likes referencing it.
+  for (const type of ['connectionRequests', 'connections', 'likes', 'comments', 'groups', 'users']) {
     let hasMore = true;
     while (hasMore) {
-      if (progress) progress.innerHTML = `<div style="color:var(--text-dim)">Deleting ${type}… (${totals.users + totals.groups + totals.comments} removed so far)</div>`;
+      const removedSoFar = Object.values(totals).reduce((a, b) => a + b, 0);
+      if (progress) progress.innerHTML = `<div style="color:var(--text-dim)">Deleting ${type}… (${removedSoFar} removed so far)</div>`;
       try {
         const resp = await fetch('/api/admin-delete-seed-users', {
           method: 'POST',
@@ -66,7 +69,8 @@ async function confirmDeleteSeedData() {
       }
     }
   }
-  if (progress) progress.innerHTML = `<div style="color:var(--success)">Done. Deleted ${totals.users} users, ${totals.groups} groups, ${totals.comments} comments.</div>`;
+  if (progress) progress.innerHTML = `<div style="color:var(--success)">Done. Deleted ${totals.users} users, ${totals.groups} groups, `
+    + `${totals.comments} comments, ${totals.likes} likes, ${totals.connections} connections, ${totals.connectionRequests} connection requests.</div>`;
   showToast('Load test data deleted');
 }
 /* ══════════════════════════════════════════════

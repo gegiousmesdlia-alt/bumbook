@@ -125,17 +125,33 @@ async function _loadFeedPage(container, isFirst) {
     posts = posts.filter(p => !p.groupId || p.groupPrivacy !== 'private' || myGroups.has(p.groupId));
     if (posts.length > 0) _feedOldestTs = posts[posts.length - 1].createdAt || 0;
     spinner.remove();
-    if (isFirst && posts.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">◪</div><div class="empty-state-title">Nothing here yet</div><div class="empty-state-desc">Be the first to post something</div></div>';
-      _feedLoading = false; return;
-    }
     const uids = [...new Set(posts.map(p => p.authorUid).filter(u => u && u !== CLAUDE_ENGINEER_UID))];
     const profiles = {};
     await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
-    const postHTMLs = posts.map(p => {
-      if (p.authorUid === CLAUDE_ENGINEER_UID) return claudeEngineerPostHTML(p);
-      return postHTML(p, profiles[p.authorUid]);
-    });
+    // Local posts, each carrying its own real timestamp for the merge below.
+    const localItems = posts.map(p => ({
+      ts: p.createdAt || 0,
+      html: p.authorUid === CLAUDE_ENGINEER_UID ? claudeEngineerPostHTML(p) : postHTML(p, profiles[p.authorUid])
+    }));
+
+    // Mixed-in real Bluesky posts (see bluesky.js) — a small batch per
+    // page load, merged into the timeline by actual post time rather than
+    // just appended, so the feed doesn't read as "our posts, then a wad of
+    // Bluesky posts at the end."
+    let blueskyItems = [];
+    if (typeof fetchBlueskyBatch === 'function') {
+      try {
+        const bskyPosts = await fetchBlueskyBatch(isFirst ? 6 : 3);
+        blueskyItems = bskyPosts.map(p => ({ ts: p.createdAt || Date.now(), html: blueskyPostHTML(p) }));
+      } catch (e) { /* Bluesky being unreachable should never break the real feed */ }
+    }
+
+    const mergedItems = localItems.concat(blueskyItems).sort((a, b) => b.ts - a.ts);
+    if (isFirst && mergedItems.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">◪</div><div class="empty-state-title">Nothing here yet</div><div class="empty-state-desc">Be the first to post something</div></div>';
+      _feedLoading = false; return;
+    }
+    const postHTMLs = mergedItems.map(item => item.html);
 
     // "For You" tray — a horizontal row of reel thumbnails above the feed,
     // first page only. Uses the same reels endpoint/cache and the same
