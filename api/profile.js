@@ -13,6 +13,13 @@ const SITE_NAME       = 'Bum Book';
 const SITE_TAGLINE    = 'Bum Book';
 
 // Fetch JSON from Firebase REST API (no auth needed for public read rules)
+// FIX: a denied/unset RTDB rule doesn't reject the HTTP request — it
+// returns 200 OK with a body like {"error":"Permission denied"}, which
+// JSON.parse()s into a real, truthy object. Every caller below was
+// treating that as "found a value" instead of "found nothing," which
+// skipped the Firestore fallback entirely and made every profile link
+// dead-end at the homepage once RTDB was no longer actually used for
+// this data. Normalizing that shape to null here fixes it at the source.
 function fbGet(path) {
   return new Promise((resolve, reject) => {
     const url = `${FIREBASE_DB_URL}/${path}.json`;
@@ -20,7 +27,11 @@ function fbGet(path) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === 'object' && 'error' in parsed) { resolve(null); return; }
+          resolve(parsed);
+        }
         catch (e) { resolve(null); }
       });
     }).on('error', reject);
