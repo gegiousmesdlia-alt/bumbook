@@ -155,10 +155,23 @@ function escapeAttr(s) {
 
 function getJSON(url) {
   return new Promise((resolve, reject) => {
-    const r = https.get(url, { timeout: TIMEOUT_MS }, resp => {
+    // No User-Agent/Accept headers made this look like a bare bot request
+    // to Cloudflare (which fronts Bluesky's API) and it was returning an
+    // HTML challenge page instead of JSON — these headers fix that.
+    const options = {
+      timeout: TIMEOUT_MS,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; BumBookApp/1.0; +https://bumbook.vercel.app)',
+        'Accept': 'application/json'
+      }
+    };
+    const r = https.get(url, options, resp => {
       let body = '';
       resp.on('data', c => { body += c; });
-      resp.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+      resp.on('end', () => {
+        if (resp.statusCode >= 400) { reject(new Error(`HTTP ${resp.statusCode}: ${body.slice(0, 200)}`)); return; }
+        try { resolve(JSON.parse(body)); } catch (e) { reject(new Error(`Non-JSON response: ${body.slice(0, 200)}`)); }
+      });
     });
     r.on('timeout', () => { r.destroy(); reject(new Error('timeout')); });
     r.on('error', reject);
