@@ -1,264 +1,484 @@
-// api/profile.js — Vercel Serverless Function
-// Serves a dynamic Open Graph preview page for ?user=HANDLE links.
-// When WhatsApp / iMessage / Twitter / Discord scrapes the URL, they hit
-// this endpoint and get a proper preview card instead of a blank page.
-//
-// URL pattern:  /api/profile?user=HANDLE  (or /u/HANDLE via vercel.json rewrite)
+// profile.js — X Club v7
+'use strict';
 
-const https = require('https');
-
-const FIREBASE_DB_URL = 'https://bumbook-default-rtdb.firebaseio.com';
-const FS_PROJECT_ID   = 'bumbook';
-const SITE_NAME       = 'Bum Book';
-const SITE_TAGLINE    = 'Bum Book';
-
-// Fetch JSON from Firebase REST API (no auth needed for public read rules)
-function fbGet(path) {
-  return new Promise((resolve, reject) => {
-    const url = `${FIREBASE_DB_URL}/${path}.json`;
-    https.get(url, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { resolve(null); }
-      });
-    }).on('error', reject);
-  });
-}
-
-// ── Firestore REST fallback ────────────────────────────────────────────────
-// Users created (or auto-migrated) after the Firestore switch may not exist
-// in RTDB at all anymore for this lookup, so if RTDB comes back empty we
-// also check Firestore's public REST API before giving up. Requires the
-// Firestore rule for the path to allow `read: if true` (public), same as
-// this endpoint has always relied on RTDB's public read rule.
-function _fsValueToPlain(v) {
-  if (!v) return null;
-  if (v.stringValue !== undefined)  return v.stringValue;
-  if (v.integerValue !== undefined) return parseInt(v.integerValue, 10);
-  if (v.doubleValue !== undefined)  return v.doubleValue;
-  if (v.booleanValue !== undefined) return v.booleanValue;
-  if (v.nullValue !== undefined)    return null;
-  if (v.timestampValue !== undefined) return v.timestampValue;
-  if (v.mapValue)   return _fsFieldsToPlain(v.mapValue.fields || {});
-  if (v.arrayValue) return (v.arrayValue.values || []).map(_fsValueToPlain);
-  return null;
-}
-function _fsFieldsToPlain(fields) {
-  const out = {};
-  for (const k in fields) out[k] = _fsValueToPlain(fields[k]);
-  return out;
-}
-function fsGet(path) {
-  return new Promise((resolve) => {
-    const url = `https://firestore.googleapis.com/v1/projects/${FS_PROJECT_ID}/databases/(default)/documents/${path}`;
-    https.get(url, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          resolve(json.fields ? _fsFieldsToPlain(json.fields) : null);
-        } catch (e) { resolve(null); }
-      });
-    }).on('error', () => resolve(null));
-  });
-}
-
-// Proxy a remote image through this function so crawlers (WhatsApp, Facebook,
-// Discord) can fetch it — they often block Firebase Storage URLs directly.
-function proxyImage(req, res) {
-  const imgUrl = req.query.__img;
-  if (!imgUrl) { res.statusCode = 400; res.end(); return; }
-  try {
-    const parsed = new URL(imgUrl);
-    const allowed = ['firebasestorage.googleapis.com', 'lh3.googleusercontent.com'];
-    if (!allowed.some(h => parsed.hostname.endsWith(h))) {
-      res.statusCode = 403; res.end(); return;
-    }
-    https.get(imgUrl, imgRes => {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', imgRes.headers['content-type'] || 'image/jpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      imgRes.pipe(res);
-    }).on('error', () => { res.statusCode = 502; res.end(); });
-  } catch (e) {
-    res.statusCode = 400; res.end();
-  }
-}
-
-function formatCount(n) {
-  if (!n || isNaN(n)) return '0';
-  n = Number(n);
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
-  return String(n);
-}
-
-function escapeHtml(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// FIX: use pure Node http style throughout — mixing res.setHeader() with
-// res.status().send() (Express style) crashes Vercel serverless functions.
-function sendHtml(res, html) {
-  const buf = Buffer.from(html, 'utf8');
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Content-Length': buf.length,
-    'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
-  });
-  res.end(buf);
-}
-
-module.exports = async (req, res) => {
-  // Derive the site URL from the actual request instead of a hardcoded
-  // domain — the hardcoded value (x-club-one.vercel.app) no longer matches
-  // the live domain (x-musk.vercel.app), which would send shared links to
-  // the wrong place.
-  const host    = req.headers['x-forwarded-host'] || req.headers.host;
-  const proto   = req.headers['x-forwarded-proto'] || 'https';
-  const SITE_URL = `${proto}://${host}`;
-
-  // ── Image proxy mode ─────────────────────────────────────────────────────
-  if (req.query.__img) { proxyImage(req, res); return; }
-
-  const handle   = (req.query.user || '').toLowerCase().trim();
-  const uidParam = (req.query.uid  || '').trim();
-
-  // ── Resolve UID from handle (RTDB first, Firestore fallback) ────────────
-  let uid = uidParam;
-  if (!uid && handle) {
-    uid = await fbGet(`handles/${handle}`);
-    if (!uid) {
-      const fsHandle = await fsGet(`handles/${handle}`);
-      // handles docs are wrapped as { value: uid } by the app's migration bridge
-      uid = fsHandle ? (fsHandle.value || null) : null;
-    }
-  }
-
-  // ── Load user profile (RTDB first, Firestore fallback) ──────────────────
-  let profile = null;
-  if (uid && typeof uid === 'string') {
-    profile = await fbGet(`users/${uid}`);
-    if (!profile || typeof profile !== 'object') {
-      profile = await fsGet(`users/${uid}`);
-    }
-  }
-
-  // ── Fallback if user not found ───────────────────────────────────────────
-  if (!profile || typeof profile !== 'object') {
-    res.writeHead(302, { Location: SITE_URL });
-    res.end();
-    return;
-  }
-
-  const displayName  = escapeHtml(profile.displayName || 'Member');
-  const userHandle   = escapeHtml(profile.handle || handle || '');
-  const photoURL     = profile.photoURL || '';
-  const followers    = formatCount(profile.followersCount || 0);
-  const following    = formatCount(profile.followingCount || 0);
-  const isVerified   = profile.verified === true;
-  const verifiedMark = isVerified ? ' ✓' : '';
-
-  // The link the user will actually open in the browser. This MUST point to
-  // user-profile.html (the page that actually renders a profile and is
-  // guest-viewable) — index.html?user=... was silently doing nothing with
-  // that query param and just showing the plain landing/sign-in screen,
-  // which meant every shared profile link dead-ended there instead of
-  // showing the profile.
-  const profileAppURL = `${SITE_URL}/profile-view?uid=${encodeURIComponent(uid)}`;
-
-  // FIX: ogImage was defined but NEVER used in the OG meta tags (template used
-  // bare photoURL directly, so users without a photo got no og:image at all).
-  // Now always set — avatar is proxied so crawlers can actually fetch it.
-  const ogImage = photoURL
-    ? `${SITE_URL}/api/profile?__img=${encodeURIComponent(photoURL)}`
-    : `${SITE_URL}/og-default.png`;
-
-  const title       = `${displayName}${verifiedMark} — ${SITE_NAME}`;
-  const description = `${followers} followers · ${following} following${profile.bio ? ' · ' + profile.bio.slice(0, 100) : ''} · Follow ${profile.displayName || 'them'} on ${SITE_NAME}`;
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-
-  <!-- ── Primary Meta ── -->
-  <meta name="description" content="${escapeHtml(description)}">
-
-  <!-- ── Open Graph (Facebook, WhatsApp, iMessage, LinkedIn, Discord) ── -->
-  <meta property="og:type"         content="profile">
-  <meta property="og:site_name"    content="${escapeHtml(SITE_NAME)}">
-  <meta property="og:url"          content="${escapeHtml(profileAppURL)}">
-  <meta property="og:title"        content="${escapeHtml(title)}">
-  <meta property="og:description"  content="${escapeHtml(description)}">
-  <meta property="og:image"        content="${escapeHtml(ogImage)}">
-  <meta property="og:image:width"  content="400">
-  <meta property="og:image:height" content="400">
-  <meta property="profile:username" content="${escapeHtml(userHandle)}">
-
-  <!-- ── Twitter / X Card ── -->
-  <meta name="twitter:card"        content="summary">
-  <meta name="twitter:title"       content="${escapeHtml(title)}">
-  <meta name="twitter:description" content="${escapeHtml(description)}">
-  <meta name="twitter:image"       content="${escapeHtml(ogImage)}">
-
-  <!-- ── Redirect to the SPA (bots won't follow this) ── -->
-  <meta http-equiv="refresh" content="0;url=${escapeHtml(profileAppURL)}">
-  <link rel="canonical" href="${escapeHtml(profileAppURL)}">
-
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#000;color:#e7e9ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
-    .card{background:#111;border:1px solid #2f3336;border-radius:16px;padding:32px;
-      max-width:400px;width:100%;text-align:center}
-    .avatar{width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #1d9bf0;margin-bottom:16px}
-    .avatar-placeholder{width:80px;height:80px;border-radius:50%;background:#1d9bf0;
-      display:inline-flex;align-items:center;justify-content:center;font-size:2rem;
-      color:#fff;margin-bottom:16px}
-    .name{font-size:1.3rem;font-weight:800;margin-bottom:4px}
-    .handle{color:#71767b;font-size:0.9rem;margin-bottom:10px}
-    .verified{color:#1d9bf0;font-size:0.85rem;margin-bottom:12px}
-    .bio{color:#e7e9ea;font-size:0.9rem;line-height:1.5;margin-bottom:16px}
-    .stats{display:flex;gap:24px;justify-content:center;margin-bottom:20px}
-    .stat strong{display:block;font-size:1.1rem;font-weight:800}
-    .stat span{font-size:0.78rem;color:#71767b}
-    .cta{display:inline-block;background:#1d9bf0;color:#fff;padding:10px 28px;
-      border-radius:9999px;font-weight:700;font-size:0.95rem;text-decoration:none;
-      transition:background 0.15s}
-    .cta:hover{background:#1a8cd8}
-    .brand{margin-top:20px;font-size:0.75rem;color:#71767b}
-  </style>
-</head>
-<body>
-  <div class="card">
-    ${photoURL
-      ? `<img class="avatar" src="${escapeHtml(photoURL)}" alt="${displayName}" onerror="this.style.display='none'">`
-      : `<div class="avatar-placeholder">${(profile.displayName || 'M')[0].toUpperCase()}</div>`
-    }
-    <div class="name">${displayName}${isVerified ? ' <span style="color:#1d9bf0">✓</span>' : ''}</div>
-    <div class="handle">@${escapeHtml(userHandle)}</div>
-    ${isVerified ? '<div class="verified">✓ Verified Member</div>' : ''}
-    ${profile.bio ? `<div class="bio">${escapeHtml(profile.bio)}</div>` : ''}
-    <div class="stats">
-      <div class="stat"><strong>${followers}</strong><span>Followers</span></div>
-      <div class="stat"><strong>${following}</strong><span>Following</span></div>
+/* ══════════════════════════════════════════════
+   OWN PROFILE
+══════════════════════════════════════════════ */
+async function renderOwnProfile() {
+  if (!currentUser || !currentProfile) { showPage('login'); return; }
+  const container = $('ownProfileContent'); if (!container) return;
+  const postsSnap = await window.XF.get('posts'); const posts = [];
+  if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === currentUser.uid) posts.push({ id: c.key, ...p }); });
+  posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const followersVisible = !currentProfile.followersHidden;
+  container.innerHTML = `
+    <div class="profile-banner" style="position:relative">
+      ${currentProfile.bannerURL ? `<img src="${currentProfile.bannerURL}" style="width:100%;height:100%;object-fit:cover">` : '<div style="width:100%;height:100%;background:var(--bg-3)"></div>'}
+      <label style="position:absolute;bottom:10px;right:10px;cursor:pointer;background:rgba(0,0,0,0.7);color:#fff;border-radius:9999px;padding:6px 12px;font-size:0.78rem;font-weight:600;display:flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Cover<input type="file" accept="image/*" style="display:none" onchange="uploadBannerPhoto(this)">
+      </label>
     </div>
-    <a class="cta" href="${escapeHtml(profileAppURL)}">Follow ${displayName} →</a>
-    <div class="brand">${escapeHtml(SITE_NAME)}</div>
-  </div>
-  <script>window.location.replace(${JSON.stringify(profileAppURL)});</script>
-</body>
-</html>`;
+    <div class="profile-info-section">
+      <div class="profile-name-row">
+        <div class="profile-avatar-wrap" style="position:relative">
+          ${avatarHTML(currentProfile, 'xl')}
+          <label style="position:absolute;bottom:0;right:0;cursor:pointer;background:var(--bg-3);border:2px solid var(--bg);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center" title="Change photo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><input type="file" accept="image/*" style="display:none" onchange="uploadProfilePhoto(this)">
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;padding-top:12px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="showEditProfile()">Edit profile</button>
+          <button class="btn btn-outline btn-sm" onclick="shareProfile()" title="Share profile">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share
+          </button>
+          ${!currentProfile.verified ? `<button class="btn btn-accent btn-sm" onclick="showPaywall()">✓ Get Verified</button>` : ''}
+        </div>
+      </div>
+      <div class="profile-name">${escapeHTML(currentProfile.displayName || 'Member')}${verifiedBadge(currentProfile.verified, true)}</div>
+      <div class="profile-handle">@${escapeHTML(currentProfile.handle || 'member')}</div>
+      ${currentProfile.bio ? `<div class="profile-bio">${escapeHTML(currentProfile.bio)}</div>` : '<div class="profile-bio text-dim">No bio yet</div>'}
+      <div id="ownBioLinkPreview"></div>
+      <div class="profile-stats">
+        <div class="profile-stat"><strong>${formatCount(currentProfile.followersCount || 0)}</strong> <span>Followers</span></div>
+        <div class="profile-stat"><strong>${formatCount(currentProfile.followingCount || 0)}</strong> <span>Following</span></div>
+        <div class="profile-stat"><strong>${formatCount(currentProfile.postsCount || 0)}</strong> <span>Posts</span></div>
+      </div>
+      <div class="privacy-toggle-row">
+        <span class="privacy-toggle-label">⊛ Show my followers publicly</span>
+        <label class="toggle-switch">
+          <input type="checkbox" ${followersVisible ? 'checked' : ''} onchange="toggleFollowersPrivacy(this.checked)">
+          <div class="toggle-track"></div><div class="toggle-thumb"></div>
+        </label>
+      </div>
+    </div>
+    <div class="profile-tabs">
+      <div class="profile-tab active" onclick="switchOwnProfileTab('posts',this)">Posts</div>
+      <div class="profile-tab" onclick="switchOwnProfileTab('media',this)">Media</div>
+    </div>
+    <div id="ownProfilePosts">
+      ${posts.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet — share something!</div></div>' : posts.map(p => postHTML(p, currentProfile)).join('')}
+    </div>`;
+  setTimeout(() => makeProfilePhotosClickable(container, currentProfile), 50);
+  renderProfileViewers(currentUser.uid, container);
+  injectBioLinkPreview('ownBioLinkPreview', currentProfile.bio);
+}
 
-  sendHtml(res, html);
-};
+function switchOwnProfileTab(tab, el) {
+  document.querySelectorAll('#ownProfileContent .profile-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const container = $('ownProfilePosts'); if (!container) return;
+  container.querySelectorAll('.post').forEach(p => { p.style.display = (tab === 'media' && !p.querySelector('.post-image')) ? 'none' : ''; });
+}
+
+async function uploadProfilePhoto(input) {
+  if (!input.files[0]) return; showToast('Uploading photo…');
+  try {
+    const r = await window.XCloud.upload(input.files[0], 'x_profiles');
+    await window.XF.update('users/' + currentUser.uid, { photoURL: r.url });
+    await window.XF.updateProfile({ photoURL: r.url });
+    currentProfile.photoURL = r.url; showToast('Profile photo updated!');
+    renderOwnProfile(); updateNavUser(); typeof updateComposerAvatar === 'function' && updateComposerAvatar();
+  } catch (err) { showToast('Upload failed: ' + err.message); }
+}
+
+async function uploadBannerPhoto(input) {
+  if (!input.files[0]) return; showToast('Uploading cover…');
+  try {
+    const r = await window.XCloud.upload(input.files[0], 'x_banners');
+    await window.XF.update('users/' + currentUser.uid, { bannerURL: r.url });
+    currentProfile.bannerURL = r.url; showToast('Cover photo updated!'); renderOwnProfile();
+  } catch (err) { showToast('Upload failed: ' + err.message); }
+}
+
+function showEditProfile() {
+  if (!currentProfile) return;
+  $('editDisplayName').value = currentProfile.displayName || '';
+  $('editBio').value = currentProfile.bio || '';
+  const hf = $('editHandle'); if (hf) hf.value = currentProfile.handle || '';
+  $('editProfileModal').classList.add('open');
+}
+
+async function saveProfile() {
+  const name = $('editDisplayName').value.trim(), bio = $('editBio').value.trim();
+  if (!name) return showToast('Name cannot be empty');
+  const updates = { displayName: name, bio };
+  const hf = $('editHandle');
+  if (hf) {
+    const newHandle = hf.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (newHandle && newHandle !== currentProfile.handle) {
+      if (newHandle.length < 3) { showToast('Handle must be at least 3 characters'); return; }
+      const snap = await window.XF.get('handles/' + newHandle);
+      if (snap.exists()) { showToast('@' + newHandle + ' is already taken'); return; }
+      await window.XF.remove('handles/' + currentProfile.handle);
+      await window.XF.set('handles/' + newHandle, currentUser.uid);
+      updates.handle = newHandle;
+    }
+  }
+  await window.XF.update('users/' + currentUser.uid, updates);
+  await window.XF.updateProfile({ displayName: name });
+  Object.assign(currentProfile, updates);
+  closeModal('editProfileModal'); showToast('Profile updated'); renderOwnProfile(); updateNavUser();
+}
+
+async function toggleFollowersPrivacy(checked) {
+  if (!currentUser) return;
+  await window.XF.update('users/' + currentUser.uid, { followersHidden: !checked });
+  currentProfile.followersHidden = !checked;
+  showToast(checked ? 'Followers list is now public' : 'Followers list hidden');
+}
+
+/* ══════════════════════════════════════════════
+   USER PROFILE
+══════════════════════════════════════════════ */
+async function openUserProfile(uid, e) {
+  if (e) e.stopPropagation();
+  if (uid === currentUser?.uid) { showPage('profile'); return; }
+  showPage('user-profile', { uid });
+}
+
+async function renderUserProfile(uid) {
+  const container = $('userProfileContent'); if (!container || !uid) return;
+  container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  try {
+    const blocked = await isBlocked(uid);
+    const snap = await window.XF.get('users/' + uid);
+    if (!snap.exists()) { container.innerHTML = '<div class="empty-state"><div class="empty-state-title">User not found</div></div>'; return; }
+    const profile = snap.val();
+    if (blocked) {
+      container.innerHTML = `<div class="empty-state" style="padding:48px 24px">
+        <div class="empty-state-icon" style="font-size:2.5rem">🚫</div>
+        <div class="empty-state-title">You've blocked this user</div>
+        <div class="empty-state-desc">They can't see your content and you won't see theirs.</div>
+        <button class="btn btn-outline btn-sm" style="margin-top:20px" onclick="unblockUser('${uid}','${escapeHTML(profile.displayName || 'Member')}').then(()=>renderUserProfile('${uid}'))">Unblock</button>
+      </div>`;
+      return;
+    }
+    let connStatus = 'none';
+    let incomingReqId = null;
+    let hasSentMsgReq = false;
+    if (currentUser) {
+      const cs = await window.XF.get('connections/' + currentUser.uid + '/' + uid);
+      if (cs.exists()) {
+        connStatus = 'connected';
+      } else {
+        const rs1 = await window.XF.get('connectionRequests/' + currentUser.uid + '_' + uid);
+        const rs2 = await window.XF.get('connectionRequests/' + uid + '_' + currentUser.uid);
+        if (rs1.exists() && rs1.val().status === 'pending') { connStatus = 'pending'; }
+        else if (rs2.exists() && rs2.val().status === 'pending') { connStatus = 'incoming'; incomingReqId = uid + '_' + currentUser.uid; }
+        // Check if we already sent a message request
+        const mrSnap = await window.XF.get('messageRequests/' + uid + '/' + currentUser.uid);
+        if (mrSnap.exists()) hasSentMsgReq = true;
+      }
+    }
+    const postsSnap = await window.XF.get('posts'); const posts = [];
+    if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === uid) posts.push({ id: c.key, ...p }); });
+    posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const followersHidden = profile.followersHidden && uid !== currentUser?.uid;
+    container.innerHTML = `
+      <div class="profile-banner">
+        ${profile.bannerURL ? `<img src="${profile.bannerURL}" style="width:100%;height:100%;object-fit:cover">` : '<div style="width:100%;height:100%;background:var(--bg-3)"></div>'}
+      </div>
+      <div class="profile-info-section">
+        <div class="profile-name-row">
+          <div class="profile-avatar-wrap">${avatarHTML(profile, 'xl')}</div>
+          <div style="display:flex;gap:8px;padding-top:12px;flex-wrap:wrap">
+            ${currentUser && uid !== currentUser.uid ? connStatus === 'incoming'
+              ? `<button class="btn btn-primary btn-sm" onclick="acceptConnectionFromProfile('${incomingReqId}','${uid}',this)">✓ Accept</button><button class="btn btn-outline btn-sm" onclick="declineConnection('${incomingReqId}').then(()=>renderUserProfile('${uid}'))">Decline</button>`
+              : connectBtnHTML(uid, connStatus) : ''}
+            ${!currentUser ? `<button class="btn btn-primary btn-sm" onclick="requireVerified('connect with members')">Connect</button>` : ''}
+            ${connStatus === 'connected'
+              ? `<button class="btn btn-outline btn-sm" onclick="openDMWith('${uid}')">Message</button>`
+              : currentUser && uid !== currentUser.uid
+                ? hasSentMsgReq
+                  ? `<button class="btn btn-outline btn-sm" disabled style="opacity:0.5">Request sent</button>`
+                  : `<button class="btn btn-outline btn-sm" onclick="sendMessageRequest('${uid}','${escapeHTML(profile.displayName||'Member')}')">✉ Message</button>`
+                : ''}
+            <button class="btn btn-outline btn-sm" onclick="shareUserProfile('${uid}','${escapeHTML(profile.displayName || 'Member')}','${escapeHTML(profile.handle || uid)}')" title="Share profile">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              Share
+            </button>
+            ${currentUser && uid !== currentUser.uid ? `<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="blockUser('${uid}','${escapeHTML(profile.displayName || 'Member')}')">🚫 Block</button>` : ''}
+          </div>
+        </div>
+        <div class="profile-name">${escapeHTML(profile.displayName || 'Member')}${verifiedBadge(profile.verified, true)}</div>
+        <div class="profile-handle">@${escapeHTML(profile.handle || 'member')}</div>
+        ${profile.bio ? `<div class="profile-bio">${escapeHTML(profile.bio)}</div>` : ''}
+        <div id="userBioLinkPreview"></div>
+        <div class="profile-stats">
+          <div class="profile-stat"><strong>${followersHidden ? '⊘' : formatCount(profile.followersCount || 0)}</strong> <span>Followers</span></div>
+          <div class="profile-stat"><strong>${formatCount(profile.followingCount || 0)}</strong> <span>Following</span></div>
+          <div class="profile-stat"><strong>${formatCount(profile.postsCount || 0)}</strong> <span>Posts</span></div>
+        </div>
+      </div>
+      <div class="profile-tabs">
+        <div class="profile-tab active" onclick="switchUserProfileTab('posts',this)">Posts</div>
+        <div class="profile-tab" onclick="switchUserProfileTab('media',this)">Media</div>
+      </div>
+      <div id="userProfilePosts">
+        ${posts.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet</div></div>' : posts.map(p => postHTML(p, profile)).join('')}
+      </div>`;
+    recordProfileView(uid);
+    setTimeout(() => makeProfilePhotosClickable(container, profile), 50);
+    renderProfileViewers(uid, container);
+    injectBioLinkPreview('userBioLinkPreview', profile.bio);
+  } catch (err) { container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">Could not load profile</div></div>'; }
+}
+
+function switchUserProfileTab(tab, el) {
+  document.querySelectorAll('#userProfileContent .profile-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const container = $('userProfilePosts'); if (!container) return;
+  container.querySelectorAll('.post').forEach(p => { p.style.display = (tab === 'media' && !p.querySelector('.post-image')) ? 'none' : ''; });
+}
+
+/* ══════════════════════════════════════════════
+   MESSAGE REQUESTS
+   - sendMessageRequest: prompts for a message, writes to messageRequests/{toUid}/{fromUid}
+   - renderMsgRequests: shows incoming requests with Accept / Decline
+   - acceptMsgRequest: moves to real DMs, deletes the request
+   - declineMsgRequest: deletes the request
+══════════════════════════════════════════════ */
+function sendMessageRequest(toUid, toName) {
+  if (!requireVerified('message this member')) return;
+  // Show a small inline modal prompting for a message
+  const existing = document.getElementById('msgReqModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'msgReqModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:400px">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:6px">Message ${escapeHTML(toName)}</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px">This will be sent as a message request. They can accept or decline.</div>
+      <textarea id="msgReqText" placeholder="Write a message…" rows="3"
+        style="width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:0.9rem;resize:none;outline:none;font-family:inherit"></textarea>
+      <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('msgReqModal').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="_submitMsgRequest('${toUid}','${escapeHTML(toName)}')">Send Request</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('msgReqText')?.focus(), 50);
+}
+
+async function _submitMsgRequest(toUid, toName) {
+  const textEl = document.getElementById('msgReqText');
+  const text = textEl?.value?.trim();
+  if (!text) { showToast('Write a message first'); return; }
+  const modal = document.getElementById('msgReqModal');
+  try {
+    await window.XF.set('messageRequests/' + toUid + '/' + currentUser.uid, {
+      fromUid: currentUser.uid,
+      fromName: currentProfile?.displayName || 'Member',
+      fromHandle: currentProfile?.handle || '',
+      fromPhoto: currentProfile?.photoURL || '',
+      text,
+      createdAt: Date.now(),
+      read: false
+    });
+    // Notify recipient
+    await window.XF.push('notifications/' + toUid, {
+      type: 'message_request',
+      fromUid: currentUser.uid,
+      fromName: currentProfile?.displayName || 'Member',
+      preview: text.slice(0, 40),
+      createdAt: Date.now(),
+      read: false
+    });
+    if (modal) modal.remove();
+    showToast('Message request sent!');
+    // Re-render profile to update button state
+    renderUserProfile(toUid);
+  } catch (e) {
+    showToast('Failed to send request');
+  }
+}
+
+async function renderMsgRequests() {
+  const container = $('msgRequestList'); if (!container || !currentUser) return;
+  container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  try {
+    const snap = await window.XF.get('messageRequests/' + currentUser.uid);
+    if (!snap.exists()) {
+      container.innerHTML = '<div class="empty-state" style="padding:32px 16px"><div class="empty-state-icon">✉</div><div class="empty-state-title">No message requests</div></div>';
+      return;
+    }
+    const requests = [];
+    snap.forEach(c => requests.push({ fromUid: c.key, ...c.val() }));
+    requests.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    container.innerHTML = requests.map(r => `
+      <div class="conv-row" style="flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:10px;width:100%">
+          <div style="cursor:pointer" onclick="openUserProfile('${r.fromUid}',event)">
+            ${avatarHTML({ photoURL: r.fromPhoto, displayName: r.fromName, handle: r.fromHandle }, 'md')}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:0.93rem">${escapeHTML(r.fromName || 'Member')}</div>
+            <div style="font-size:0.8rem;color:var(--text-dim)">@${escapeHTML(r.fromHandle || '')}</div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">${timeAgo(r.createdAt)}</div>
+        </div>
+        <div style="font-size:0.88rem;color:var(--text);padding-left:2px;word-break:break-word">${escapeHTML(r.text || '')}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" onclick="acceptMsgRequest('${r.fromUid}','${escapeHTML(r.fromName||'Member')}')">✓ Accept</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="declineMsgRequest('${r.fromUid}')">Decline</button>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">Could not load requests</div></div>';
+  }
+}
+
+async function acceptMsgRequest(fromUid, fromName) {
+  try {
+    // Get request data to seed first message
+    const reqSnap = await window.XF.get('messageRequests/' + currentUser.uid + '/' + fromUid);
+    if (reqSnap.exists()) {
+      const req = reqSnap.val();
+      const convId = [currentUser.uid, fromUid].sort().join('_');
+      // Write their original message into real DMs
+      await window.XF.push('dms/' + convId, {
+        senderUid: fromUid,
+        text: req.text,
+        createdAt: req.createdAt || Date.now(),
+        readBy: {}
+      });
+    }
+    // Delete the request
+    await window.XF.remove('messageRequests/' + currentUser.uid + '/' + fromUid);
+    // Notify sender
+    await window.XF.push('notifications/' + fromUid, {
+      type: 'message_request_accepted',
+      fromUid: currentUser.uid,
+      fromName: currentProfile?.displayName || 'Member',
+      createdAt: Date.now(),
+      read: false
+    });
+    showToast('Request accepted — opening chat');
+    // Switch to messages tab, open DM
+    _switchMsgTab('chats');
+    openDMWith(fromUid);
+  } catch (e) { showToast('Could not accept request'); }
+}
+
+async function declineMsgRequest(fromUid) {
+  try {
+    await window.XF.remove('messageRequests/' + currentUser.uid + '/' + fromUid);
+    showToast('Request declined');
+    renderMsgRequests();
+    _updateMsgRequestBadge();
+  } catch (e) { showToast('Could not decline request'); }
+}
+
+async function _updateMsgRequestBadge() {
+  try {
+    const snap = await window.XF.get('messageRequests/' + currentUser.uid);
+    const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+    const badge = $('msgReqBadge');
+    if (badge) { badge.textContent = count > 99 ? '99+' : String(count); badge.style.display = count > 0 ? 'flex' : 'none'; }
+  } catch (e) {}
+}
+
+function _switchMsgTab(tab) {
+  const chatsBtn  = $('msgTabChats');
+  const reqBtn    = $('msgTabRequests');
+  const convList  = $('convList');
+  const reqList   = $('msgRequestList');
+  if (!chatsBtn || !reqBtn) return;
+  if (tab === 'chats') {
+    chatsBtn.classList.add('active'); reqBtn.classList.remove('active');
+    if (convList)  convList.style.display  = 'block';
+    if (reqList)   reqList.style.display   = 'none';
+  } else {
+    reqBtn.classList.add('active'); chatsBtn.classList.remove('active');
+    if (convList)  convList.style.display  = 'none';
+    if (reqList)   reqList.style.display   = 'block';
+    renderMsgRequests();
+    _updateMsgRequestBadge();
+  }
+}
+
+/* ══════════════════════════════════════════════
+   PROFILE VIEWERS (TikTok-style)
+══════════════════════════════════════════════ */
+async function recordProfileView(profileUid) {
+  if (!currentUser || profileUid === currentUser.uid) return;
+  try {
+    await window.XF.set('profileViews/' + profileUid + '/' + currentUser.uid, { uid: currentUser.uid, displayName: currentProfile?.displayName || 'Member', handle: currentProfile?.handle || 'member', photoURL: currentProfile?.photoURL || '', viewedAt: window.XF.ts() });
+  } catch (e) {}
+}
+
+async function renderProfileViewers(profileUid, containerEl) {
+  if (!currentUser || profileUid !== currentUser.uid) return;
+  try {
+    const snap = await window.XF.get('profileViews/' + profileUid);
+    if (!snap.exists()) return;
+    const viewers = []; snap.forEach(c => viewers.push(c.val()));
+    viewers.sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
+    const recent = viewers.slice(0, 5);
+    if (recent.length === 0) return;
+    const strip = document.createElement('div'); strip.className = 'profile-viewers-strip';
+    strip.innerHTML = `
+      <div class="profile-viewers-avatars">${recent.map(v => avatarHTML(v, 'sm')).join('')}</div>
+      <div class="profile-viewers-label">${recent.length} recent viewer${recent.length > 1 ? 's' : ''}</div>`;
+    let panelOpen = false;
+    strip.onclick = function (e) {
+      e.stopPropagation();
+      let panel = strip.querySelector('.profile-viewers-panel');
+      if (panel) { panel.remove(); panelOpen = false; return; }
+      panelOpen = true;
+      panel = document.createElement('div'); panel.className = 'profile-viewers-panel';
+      panel.innerHTML = viewers.slice(0, 10).map(v => `
+        <div class="profile-viewer-row" onclick="openUserProfile('${v.uid}',event)">
+          ${avatarHTML(v, 'sm')}
+          <div>
+            <div class="profile-viewer-name">${escapeHTML(v.displayName || 'Member')}</div>
+            <div class="profile-viewer-handle">@${escapeHTML(v.handle || 'member')} · ${timeAgo(v.viewedAt)}</div>
+          </div>
+        </div>`).join('');
+      strip.appendChild(panel);
+      setTimeout(() => document.addEventListener('click', function h() { panel.remove(); document.removeEventListener('click', h); }, { once: true }), 50);
+    };
+    containerEl.insertBefore(strip, containerEl.firstChild);
+  } catch (e) {}
+}
+
+/* ══════════════════════════════════════════════
+   CLICKABLE PROFILE PHOTO + BANNER
+══════════════════════════════════════════════ */
+function makeProfilePhotosClickable(containerEl, profile) {
+  const bannerEl = containerEl.querySelector('.profile-banner img');
+  if (bannerEl) { bannerEl.style.cursor = 'pointer'; bannerEl.onclick = function (e) { e.stopPropagation(); openLightbox(profile.bannerURL); }; }
+  const avatarEl = containerEl.querySelector('.profile-avatar-wrap img,.profile-avatar-wrap .avatar');
+  if (avatarEl && profile.photoURL) { avatarEl.style.cursor = 'pointer'; avatarEl.onclick = function (e) { e.stopPropagation(); openLightbox(profile.photoURL); }; }
+}
+
+/* ══════════════════════════════════════════════
+   SHARE PROFILE
+══════════════════════════════════════════════ */
+function shareProfile() {
+  if (!currentProfile) return;
+  const handle = currentProfile.handle || currentUser?.uid;
+  // /u/handle goes through the Vercel serverless function which serves
+  // full Open Graph meta tags so WhatsApp / iMessage / Discord show a
+  // rich preview card (photo, followers, bio, "Follow X →" CTA).
+  const url = window.location.origin + '/u/' + encodeURIComponent(handle);
+  const text = 'Follow ' + (currentProfile.displayName || 'me') + ' on Bum Book';
+  if (navigator.share) {
+    navigator.share({ title: currentProfile.displayName + ' — Bum Book', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url).then(() => showToast('Profile link copied!')).catch(() => showToast('Link: ' + url));
+  }
+}
+
+function shareUserProfile(uid, displayName, handle) {
+  const slug = handle || uid;
+  const url  = window.location.origin + '/u/' + encodeURIComponent(slug);
+  const text = 'Follow ' + (displayName || 'this member') + ' on Bum Book';
+  if (navigator.share) {
+    navigator.share({ title: (displayName || 'Member') + ' — Bum Book', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url).then(() => showToast('Profile link copied!')).catch(() => showToast('Link: ' + url));
+  }
+}

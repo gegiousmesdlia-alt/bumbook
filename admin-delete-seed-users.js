@@ -108,15 +108,24 @@ module.exports = async (req, res) => {
       remaining = check.empty ? 0 : 1;
 
     } else if (type === 'likes') {
-      // From scripts/seed-engagement.js — posts/{id}/likes/{uid} docs.
-      const snap = await db.collectionGroup('likes').where('seedTest', '==', true).limit(BATCH_SIZE).get();
+      // Likes are a map field on the post doc (posts/{id}.likes.{uid}), not
+      // a subcollection, so they can't be found with a collectionGroup
+      // query — seedLikeIndex (written alongside each one by
+      // seed-engagement.js) is the lookup table that makes them findable.
+      const snap = await db.collection('seedLikeIndex').where('seedTest', '==', true).limit(BATCH_SIZE).get();
       if (!snap.empty) {
-        const batch = db.batch();
-        snap.docs.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
+        await Promise.allSettled(snap.docs.map(async doc => {
+          const { postId, uid } = doc.data();
+          if (postId && uid) {
+            await db.collection('posts').doc(postId)
+              .update({ [`likes.${uid}`]: admin.firestore.FieldValue.delete() })
+              .catch(() => {}); // post may have been deleted since — nothing to clean there, still remove the index doc
+          }
+          await doc.ref.delete();
+        }));
         deleted = snap.docs.length;
       }
-      const check = await db.collectionGroup('likes').where('seedTest', '==', true).limit(1).get();
+      const check = await db.collection('seedLikeIndex').where('seedTest', '==', true).limit(1).get();
       remaining = check.empty ? 0 : 1;
 
     } else if (type === 'connections') {
@@ -162,8 +171,41 @@ module.exports = async (req, res) => {
       const check = await db.collection('connectionRequests').where('seedTest', '==', true).limit(1).get();
       remaining = check.empty ? 0 : 1;
 
+    } else if (type === 'notifications') {
+      // From api/run-bot-engagement.js — connection-request notifications
+      // it wrote into a real user's own notifications inbox.
+      const snap = await db.collectionGroup('notifications').where('seedTest', '==', true).limit(BATCH_SIZE).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        deleted = snap.docs.length;
+      }
+      const check = await db.collectionGroup('notifications').where('seedTest', '==', true).limit(1).get();
+      remaining = check.empty ? 0 : 1;
+
+    } else if (type === 'botqueue') {
+      // Not user-visible data, but worth clearing along with everything
+      // else: any actions still scheduled (posts liked minutes ago that
+      // haven't fired their connect yet, etc.) plus the cached state docs,
+      // so turning the bot back on later starts clean instead of
+      // immediately firing a backlog.
+      const snap = await db.collection('botQueue').limit(BATCH_SIZE).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        deleted = snap.docs.length;
+      }
+      const check = await db.collection('botQueue').limit(1).get();
+      remaining = check.empty ? 0 : 1;
+      if (remaining === 0) {
+        await db.collection('botState').doc('seedUidPool').delete().catch(() => {});
+        await db.collection('botState').doc('postCursor').delete().catch(() => {});
+      }
+
     } else {
-      res.status(400).json({ error: 'type must be users, groups, comments, likes, connections, or connectionRequests' });
+      res.status(400).json({ error: 'type must be users, groups, comments, likes, connections, connectionRequests, notifications, or botqueue' });
       return;
     }
 

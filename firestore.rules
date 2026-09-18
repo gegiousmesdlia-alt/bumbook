@@ -52,7 +52,11 @@ service cloud.firestore {
       // create access to someone else's subcollection; the recipient
       // manages (accepts/declines/deletes) their own inbox.
       match /messageRequests/{fromUid} {
-        allow read: if isSelf(uid) || isAdmin();
+        // The sender needs to read their own outgoing request (to show
+        // "Request sent" instead of the Message button) — this was
+        // missing before and caused EVERY profile view of a non-connected
+        // user to throw permission-denied on this read alone.
+        allow read: if isSelf(uid) || isSelf(fromUid) || isAdmin();
         allow create: if isSelf(fromUid);
         allow update, delete: if isSelf(uid) || isSelf(fromUid) || isAdmin();
       }

@@ -61,6 +61,7 @@ const _EMOJIS    = ['❤️','😂','😮','😢','😡','👍','👎','🔥','�
    OPEN / CLOSE DM
 ═══════════════════════════════════════════════════════════════════════════ */
 async function openDMWith(uid) {
+  if (!requireVerified('message this member')) return;
   _dmTeardown();
 
   if (activePage !== 'messages') showPage('messages');

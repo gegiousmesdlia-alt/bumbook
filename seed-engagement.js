@@ -122,14 +122,20 @@ async function main() {
   const seedUidSet = new Set(seedUsers.map(u => u.uid));
 
   /* ── 1) LIKES ─────────────────────────────────────────────────────────── */
+  // NOTE: likes live as a `likes` MAP FIELD directly on the post document
+  // (posts/{id}.likes = { uid: true, ... }) — not a subcollection, unlike
+  // comments. A companion seedLikeIndex doc is written alongside each one
+  // purely so the admin cleanup tool can find and remove exactly the likes
+  // this script added, without having to scan every post.
   console.log('Sampling posts for likes...');
   const postsSnap = await db.collection('posts').limit(MAX_POSTS_TO_TOUCH).get();
   let likeOps = [];
   postsSnap.docs.forEach(postDoc => {
     const likers = seedUsers.filter(() => Math.random() < LIKE_CHANCE_PER_USER).slice(0, MAX_LIKERS_PER_POST);
     likers.forEach(u => {
-      likeOps.push(batch => batch.set(postDoc.ref.collection('likes').doc(u.uid), {
-        seedTest: true, likedAt: Date.now()
+      likeOps.push(batch => batch.update(postDoc.ref, { [`likes.${u.uid}`]: true }));
+      likeOps.push(batch => batch.set(db.collection('seedLikeIndex').doc(`${postDoc.id}_${u.uid}`), {
+        postId: postDoc.id, uid: u.uid, seedTest: true, likedAt: Date.now()
       }));
     });
   });
