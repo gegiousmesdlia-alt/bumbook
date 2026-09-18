@@ -202,6 +202,11 @@ module.exports = async (req, res) => {
       if (remaining === 0) {
         await db.collection('botState').doc('seedUidPool').delete().catch(() => {});
         await db.collection('botState').doc('postCursor').delete().catch(() => {});
+        // scripts/seed-engagement.js's own resumable-round checkpoint —
+        // reset alongside the bot's state so a full wipe doesn't leave it
+        // thinking a round is already partway done (or finished) when all
+        // the data it was tracking has just been deleted.
+        await db.collection('seedEngagementState').doc('cursor').delete().catch(() => {});
       }
 
     } else {

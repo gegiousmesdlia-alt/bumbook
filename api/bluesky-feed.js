@@ -1,17 +1,26 @@
 /* api/bluesky-feed.js — pulls public Bluesky posts to mix into the feed.
  *
+ * WHY "getFeed" INSTEAD OF "searchPosts": this originally called
+ * app.bsky.feed.searchPosts with a keyword query per niche. Bluesky's own
+ * docs actually flag that endpoint with "may require authentication...
+ * for some service providers and implementations" — and in testing it
+ * started returning a bare 403 HTML page (not even a JSON error) instead
+ * of results, meaning it's not reliably public. app.bsky.feed.getFeed
+ * against Bluesky's own official "What's Hot" discover feed has no such
+ * caveat anywhere — it's the literal feed unauthenticated visitors see on
+ * bsky.app itself, so it can't require auth without breaking Bluesky's own
+ * homepage. Niches are now applied AFTER fetching: each post's text is
+ * matched against per-niche keyword lists, so the "search per niche"
+ * concept survives without depending on a flaky endpoint.
+ *
  * WHY THIS NEEDS NO API KEY: unlike YouTube, Bluesky's AppView
- * (public.api.bsky.app) serves public read endpoints with no auth at all.
- * That also means there's no per-key quota to protect — the thing worth
+ * (public.api.bsky.app) serves this endpoint with no auth at all. That
+ * also means there's no per-key quota to protect — the thing worth
  * protecting instead is Bluesky's own rate limiting of our server's IP, so
  * this still caches at the CDN the same way the YouTube routes do.
  *
- * NICHES: rather than one generic firehose, each niche is its own search
- * query, so a post gets tagged with the niche it was fetched for (shown as
- * a small pill in the UI) instead of being dumped in undifferentiated.
- *
- * FOLLOWER COUNTS ARE REAL, NOT RANDOM: after searchPosts returns authors,
- * we batch a getProfiles call (up to 25 actors per call) to pull each
+ * FOLLOWER COUNTS ARE REAL, NOT RANDOM: after getFeed returns authors, we
+ * batch a getProfiles call (up to 25 actors per call) to pull each
  * author's actual public follower count. It's one extra cheap call and
  * means the number shown is really theirs, not made up.
  *
@@ -29,19 +38,22 @@
 const https = require('https');
 const TIMEOUT_MS = 8000;
 const APPVIEW = 'https://public.api.bsky.app';
+// Bluesky's own official "What's Hot" discover feed generator — public,
+// unauthenticated, the same one bsky.app's own Discover tab uses.
+const WHATS_HOT_FEED_URI = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot';
+const FETCH_SIZE = 50; // pulled once, then bucketed into niches client-of-this-function-side
 
-// Each niche is a search query. Rotating across these is what makes the
-// mixed-in content feel like it's covering different corners of Bluesky
-// rather than one repetitive topic. Add more here any time.
+// Keyword lists used to CLASSIFY fetched posts into a niche after the
+// fact (not to query Bluesky — see file header for why that changed).
 const NICHES = {
-  tech:     'tech OR programming OR software OR ai',
-  sports:   'football OR basketball OR soccer OR nba',
-  news:     'breaking news',
-  comedy:   'funny OR comedy OR meme',
-  music:    'new music OR album OR concert',
-  gaming:   'gaming OR videogames OR esports',
-  fashion:  'fashion OR style OR outfit',
-  food:     'recipe OR cooking OR foodie'
+  tech:     ['tech', 'programming', 'software', ' ai ', 'coding', 'developer'],
+  sports:   ['football', 'basketball', 'soccer', 'nba', 'nfl', 'match'],
+  news:     ['breaking', 'news', 'report', 'election', 'government'],
+  comedy:   ['funny', 'comedy', 'meme', 'lol', 'joke'],
+  music:    ['music', 'album', 'concert', 'song', 'band'],
+  gaming:   ['gaming', 'videogame', 'esports', 'playstation', 'xbox', 'nintendo'],
+  fashion:  ['fashion', 'style', 'outfit', 'wardrobe'],
+  food:     ['recipe', 'cooking', 'foodie', 'restaurant', 'baking']
 };
 const NICHE_KEYS = Object.keys(NICHES);
 
@@ -50,32 +62,48 @@ const NICHE_KEYS = Object.keys(NICHES);
 // fallback doesn't fragment the CDN cache into one entry per random pick.
 function _dayIndex() { return Math.floor(Date.now() / 86400000); }
 
+function classifyNiche(text) {
+  const lower = ' ' + (text || '').toLowerCase() + ' ';
+  for (const key of NICHE_KEYS) {
+    if (NICHES[key].some(kw => lower.includes(kw))) return key;
+  }
+  return null; // no keyword match — still shown, just labeled "Trending" client-side
+}
+
 module.exports = async (req, res) => {
   // 15 min fresh, serve stale for up to a day while revalidating — plenty
   // fresh for a "recent posts" feed without hammering Bluesky's AppView.
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=86400');
 
   const nicheParam = (req.query.niche || '').trim();
-  const niche = NICHES[nicheParam] ? nicheParam : NICHE_KEYS[_dayIndex() % NICHE_KEYS.length];
+  const requestedNiche = NICHES[nicheParam] ? nicheParam : NICHE_KEYS[_dayIndex() % NICHE_KEYS.length];
   const cursor = (req.query.cursor || '').trim();
 
   try {
-    const searchParams = new URLSearchParams({ q: NICHES[niche], limit: '25', sort: 'latest' });
-    if (cursor) searchParams.set('cursor', cursor);
-    const searchData = await getJSON(`${APPVIEW}/xrpc/app.bsky.feed.searchPosts?${searchParams}`);
+    const feedParams = new URLSearchParams({ feed: WHATS_HOT_FEED_URI, limit: String(FETCH_SIZE) });
+    if (cursor) feedParams.set('cursor', cursor);
+    const feedData = await getJSON(`${APPVIEW}/xrpc/app.bsky.feed.getFeed?${feedParams}`);
 
-    if (searchData.error) {
-      res.status(200).json({ items: [], configured: true, error: 'api', message: searchData.message || searchData.error });
+    if (feedData.error) {
+      res.status(200).json({ items: [], configured: true, error: 'api', message: feedData.message || feedData.error });
       return;
     }
 
-    const rawPosts = (searchData.posts || [])
-      .filter(p => p.record && typeof p.record.text === 'string' && p.record.text.trim() && !p.record.reply); // top-level posts only
+    const rawPosts = (feedData.feed || [])
+      .map(entry => entry.post)
+      .filter(p => p && p.record && typeof p.record.text === 'string' && p.record.text.trim() && !p.record.reply); // top-level posts only
+
+    // Bucket by niche; if the requested niche came up short (keyword
+    // matching won't evenly cover 50 random trending posts), backfill with
+    // unclassified ones so the feed never ends up empty for a niche that
+    // just didn't come up much in this particular batch.
+    const matched = rawPosts.filter(p => classifyNiche(p.record.text) === requestedNiche);
+    const unclassified = rawPosts.filter(p => classifyNiche(p.record.text) === null);
+    const chosen = matched.length >= 3 ? matched : matched.concat(unclassified).slice(0, 8);
 
     // Batch-fetch real follower counts for every distinct author in this
-    // page. getProfiles caps at 25 actors per call, which conveniently
-    // matches our own page size, so this is always exactly one extra call.
-    const dids = [...new Set(rawPosts.map(p => p.author && p.author.did).filter(Boolean))].slice(0, 25);
+    // selection. getProfiles caps at 25 actors per call.
+    const dids = [...new Set(chosen.map(p => p.author && p.author.did).filter(Boolean))].slice(0, 25);
     const profileByDid = {};
     if (dids.length) {
       const profParams = new URLSearchParams();
@@ -86,13 +114,13 @@ module.exports = async (req, res) => {
       } catch (e) { /* follower counts are a nice-to-have — fall through without them */ }
     }
 
-    const items = rawPosts.map(p => {
+    const items = chosen.map(p => {
       const uri = p.uri || '';
       const rkey = uri.split('/').pop();
       const profile = profileByDid[p.author?.did] || {};
       return {
         id: uri,
-        niche,
+        niche: classifyNiche(p.record.text) || requestedNiche,
         textHTML: renderFacetedHTML(p.record.text, p.record.facets),
         createdAt: new Date(p.record.createdAt || p.indexedAt || Date.now()).getTime(),
         likeCount: p.likeCount || 0,
@@ -109,7 +137,7 @@ module.exports = async (req, res) => {
       };
     });
 
-    res.status(200).json({ items, configured: true, niche, cursor: searchData.cursor || null });
+    res.status(200).json({ items, configured: true, niche: requestedNiche, cursor: feedData.cursor || null });
   } catch (err) {
     res.status(200).json({ items: [], configured: true, error: 'fetch', message: String(err && err.message || err) });
   }
