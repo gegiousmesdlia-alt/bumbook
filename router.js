@@ -26,6 +26,8 @@ const PAGE_ROUTES = {
   'group-detail': '/group',
   'user-profile': '/profile-view',
   'post-detail':  '/post',
+  'bsky-profile': '/bsky-user',
+  'bsky-post':    '/bsky-post',
 };
 const ROUTE_TO_PAGE = Object.fromEntries(Object.entries(PAGE_ROUTES).map(([k, v]) => [v, k]));
 
@@ -39,6 +41,8 @@ function pageFromLocation() {
   if (params.get('postId')) opts.postId = params.get('postId');
   if (params.get('groupId')) opts.groupId = params.get('groupId');
   if (params.get('channelId')) opts.channelId = params.get('channelId');
+  if (params.get('actor')) opts.bskyActor = params.get('actor');
+  if (params.get('uri')) opts.bskyUri = params.get('uri');
   return { name, opts };
 }
 
@@ -75,6 +79,8 @@ function showPage(name, opts = {}) {
   if (opts.postId) params.set('postId', opts.postId);
   if (opts.groupId) params.set('groupId', opts.groupId);
   if (opts.channelId) params.set('channelId', opts.channelId);
+  if (opts.bskyActor) params.set('actor', opts.bskyActor);
+  if (opts.bskyUri) params.set('uri', opts.bskyUri);
   const qs = params.toString();
   if (qs) url += '?' + qs;
 

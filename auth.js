@@ -220,6 +220,14 @@ function onPageActivated(page, opts = {}) {
       const postId = opts.postId || new URLSearchParams(window.location.search).get('postId');
       if (postId) renderPostDetail(postId); else showPage('feed');
     }
+    if (page === 'bsky-profile') {
+      const actor = opts.bskyActor || new URLSearchParams(window.location.search).get('actor');
+      if (actor) renderBskyProfile(actor); else showPage('feed');
+    }
+    if (page === 'bsky-post') {
+      const uri = opts.bskyUri || new URLSearchParams(window.location.search).get('uri');
+      if (uri) renderBskyPost(uri); else showPage('feed');
+    }
   } else {
     if (page === 'user-profile') {
       const uid = opts.uid || new URLSearchParams(window.location.search).get('uid');
@@ -227,6 +235,12 @@ function onPageActivated(page, opts = {}) {
     } else if (page === 'post-detail') {
       const postId = opts.postId || new URLSearchParams(window.location.search).get('postId');
       if (postId) renderPostDetail(postId);
+    } else if (page === 'bsky-profile') {
+      const actor = opts.bskyActor || new URLSearchParams(window.location.search).get('actor');
+      if (actor) renderBskyProfile(actor);
+    } else if (page === 'bsky-post') {
+      const uri = opts.bskyUri || new URLSearchParams(window.location.search).get('uri');
+      if (uri) renderBskyPost(uri);
     } else if (page === 'reels') {
       renderReels();
     } else if (page === 'channel') {

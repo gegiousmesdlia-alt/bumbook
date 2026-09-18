@@ -166,6 +166,12 @@ async function _loadFeedPage(container, isFirst) {
 
     let sentinel = $('feedSentinel');
     if (!sentinel) { sentinel = document.createElement('div'); sentinel.id = 'feedSentinel'; container.appendChild(sentinel); }
+    // On the first page, wipe anything already sitting in the container —
+    // specifically the un-IDed spinner renderFeed() puts up before this
+    // function even runs, which nothing was ever clearing (it hid behind
+    // the "Nothing here yet" empty-state whenever that showed instead, so
+    // this went unnoticed until the feed reliably had content to show).
+    if (isFirst) { container.innerHTML = ''; container.appendChild(sentinel); }
     const wrapper = document.createElement('div'); wrapper.innerHTML = html;
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
     if (_feedExhausted) {
