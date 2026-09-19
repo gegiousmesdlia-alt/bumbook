@@ -68,6 +68,133 @@ function dismissPushOffBanner() {
   const el = $('pushOffBanner'); if (el) el.innerHTML = '';
 }
 
+/* ── Global "notifications are blocked" banner + auto-prompt ───────────
+ * Two different things, easy to conflate:
+ *  - permission === 'default'  → never asked yet. This CAN be prompted
+ *    programmatically, so _maybeAutoPromptPush() does that once per
+ *    session, shortly after login, so it's not something the person has
+ *    to remember to go dig up in settings.
+ *  - permission === 'denied'   → explicitly declined already. NO website
+ *    can re-trigger the browser's permission dialog once denied — this is
+ *    a deliberate browser anti-annoyance rule, not a bug here. Clicking
+ *    the red banner below tries requestPermission() anyway (harmless,
+ *    and covers the edge case where they already fixed it in settings but
+ *    haven't reloaded), but when it's still actually denied, this shows
+ *    real instructions instead of a button that would silently do nothing. */
+let _pushAutoPromptedThisSession = false;
+async function _maybeAutoPromptPush() {
+  if (_pushAutoPromptedThisSession) return;
+  _pushAutoPromptedThisSession = true;
+  if (!currentUser || !pushSupported()) return;
+
+  if (Notification.permission === 'default') {
+    // Small delay so this doesn't fire before the page has even painted —
+    // some browsers apply extra scrutiny (a quieter, easy-to-miss prompt
+    // UI) to permission requests that fire the instant a page loads with
+    // no other activity yet.
+    setTimeout(() => { enablePushNotifications().then(() => renderPushDeniedBanner()); }, 1200);
+  } else if (Notification.permission === 'denied') {
+    renderPushDeniedBanner();
+  }
+}
+
+function renderPushDeniedBanner() {
+  const el = $('pushDeniedBanner'); if (!el) return;
+  const dismissed = sessionStorage.getItem('xclub_push_denied_banner_dismissed');
+  if (!currentUser || dismissed || !pushSupported() || Notification.permission !== 'denied') { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="push-off-banner" style="background:#fdeaea;color:#8a1f1f;border-bottom:1px solid #f3b8b8">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+    <span>Notifications are blocked — tap to fix it</span>
+    <button onclick="_pushDeniedBannerClick()" style="background:#8a1f1f;color:#fff">Fix it</button>
+    <span class="push-off-banner-close" onclick="dismissPushDeniedBanner()">✕</span>
+  </div>`;
+}
+function dismissPushDeniedBanner() {
+  sessionStorage.setItem('xclub_push_denied_banner_dismissed', '1');
+  const el = $('pushDeniedBanner'); if (el) el.innerHTML = '';
+}
+async function _pushDeniedBannerClick() {
+  // Try anyway — covers "they already fixed it in OS/browser settings but
+  // this tab hasn't reloaded yet," the one case where this can actually
+  // still work. If it's genuinely still denied, this silently no-ops
+  // (browsers don't even show a dialog), so fall through to instructions.
+  try { await Notification.requestPermission(); } catch (e) {}
+  if (Notification.permission === 'granted') {
+    await enablePushNotifications();
+    renderPushDeniedBanner();
+    return;
+  }
+  showNotificationReenableModal();
+}
+
+function _notificationReenableSteps() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS/i.test(ua);
+  const isFirefox = /Firefox/i.test(ua);
+
+  if (isIOS) {
+    // Web push on iOS ONLY works for a site added to the Home Screen —
+    // Safari itself (a normal browser tab) can't receive push at all,
+    // regardless of permission state. Worth saying plainly since no
+    // amount of "fixing" the permission helps if this step was skipped.
+    return `<ol style="text-align:left;padding-left:20px;margin:0">
+      <li>Make sure Bum Book is added to your Home Screen (Share → "Add to Home Screen") — Safari tabs can't receive push notifications on iOS at all, only installed home-screen apps can.</li>
+      <li>Open the <strong>Settings</strong> app → scroll down to <strong>Bum Book</strong> → <strong>Notifications</strong> → turn Allow Notifications on.</li>
+      <li>Reopen Bum Book from your Home Screen.</li>
+    </ol>`;
+  }
+  if (isAndroid) {
+    return `<ol style="text-align:left;padding-left:20px;margin:0">
+      <li>Tap the <strong>⋮</strong> menu (or the lock/info icon next to the address bar).</li>
+      <li>Tap <strong>Site settings</strong> → <strong>Notifications</strong> → set to <strong>Allow</strong>.</li>
+      <li>Reload this page.</li>
+    </ol>`;
+  }
+  if (isSafari) {
+    return `<ol style="text-align:left;padding-left:20px;margin:0">
+      <li>Open <strong>Safari</strong> menu → <strong>Settings for This Website...</strong></li>
+      <li>Set <strong>Notifications</strong> to <strong>Allow</strong>.</li>
+      <li>Reload this page.</li>
+    </ol>`;
+  }
+  if (isFirefox) {
+    return `<ol style="text-align:left;padding-left:20px;margin:0">
+      <li>Click the <strong>lock icon</strong> in the address bar.</li>
+      <li>Find <strong>Notifications</strong> and change it to <strong>Allow</strong>.</li>
+      <li>Reload this page.</li>
+    </ol>`;
+  }
+  // Chrome/Edge desktop default
+  return `<ol style="text-align:left;padding-left:20px;margin:0">
+    <li>Click the <strong>🔒</strong> or <strong>ⓘ</strong> icon in the address bar (left of the URL).</li>
+    <li>Find <strong>Notifications</strong> and change it to <strong>Allow</strong>.</li>
+    <li>Reload this page.</li>
+  </ol>`;
+}
+
+function showNotificationReenableModal() {
+  let modal = $('notifReenableModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'notifReenableModal';
+    modal.className = 'modal-overlay';
+    modal.setAttribute('onclick', "if(event.target===this)this.classList.remove('open')");
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div class="modal-card" style="max-width:380px;padding:28px 24px">
+      <div style="font-size:2rem;margin-bottom:8px;text-align:center">🔕</div>
+      <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px;text-align:center">Notifications are blocked</div>
+      <div style="color:var(--text-dim);font-size:0.85rem;margin-bottom:16px;text-align:center">Once declined, no website can re-show that permission popup — it has to be turned back on manually:</div>
+      ${_notificationReenableSteps()}
+      <button class="btn btn-primary" style="width:100%;margin-top:20px" onclick="document.getElementById('notifReenableModal').classList.remove('open')">Got it</button>
+    </div>`;
+  modal.classList.add('open');
+}
+
+
 /* Silently re-subscribes on load if push was previously enabled, without
    any toast or user interaction — this is what actually repairs an
    already-stale subscription sitting in someone's browser (like the one

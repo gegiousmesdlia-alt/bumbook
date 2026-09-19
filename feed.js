@@ -9,6 +9,7 @@ const FEED_PAGE_SIZE = 20;
 let _feedOldestTs = null;
 let _feedLoading = false;
 let _feedExhausted = false;
+let _feedFullyDone = false; // local posts exhausted AND Bluesky came up empty on the last try
 let _feedScrollHandler = null;
 
 function _teardownFeed() {
@@ -19,7 +20,7 @@ function _teardownFeed() {
     window.removeEventListener('scroll', _feedScrollHandler);
     _feedScrollHandler = null;
   }
-  _feedOldestTs = null; _feedLoading = false; _feedExhausted = false;
+  _feedOldestTs = null; _feedLoading = false; _feedExhausted = false; _feedFullyDone = false;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -104,26 +105,36 @@ async function renderFeed() {
 }
 
 async function _loadFeedPage(container, isFirst) {
-  if (_feedLoading || _feedExhausted) return;
+  // NOTE: _feedExhausted only means "no more LOCAL posts" — it does not
+  // mean "stop the whole feed." Bluesky is fetched below regardless, so
+  // the guard here (and on the scroll listener) checks _feedFullyDone,
+  // not _feedExhausted. See the bottom of this function for how that
+  // combined flag gets set.
+  if (_feedLoading || _feedFullyDone) return;
   _feedLoading = true;
   let spinner = $('feedLoadMore');
   if (!spinner) { spinner = document.createElement('div'); spinner.id = 'feedLoadMore'; spinner.className = 'loading-center'; spinner.style.padding = '20px'; spinner.innerHTML = '<div class="spinner"></div>'; container.appendChild(spinner); }
   try {
     const blockedUids = await getBlockedUids();
-    const snap = await window.XF.getPostsPage(FEED_PAGE_SIZE + 1, _feedOldestTs || undefined);
     let posts = [];
-    if (snap.exists()) snap.forEach(c => posts.push({ id: c.key, ...c.val() }));
-    posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    if (posts.length <= FEED_PAGE_SIZE) _feedExhausted = true;
-    posts = posts.slice(0, FEED_PAGE_SIZE);
-    posts = posts.filter(p => !blockedUids.has(p.authorUid));
-    // Group posts: public groups' posts appear in everyone's feed (members
-    // and non-members alike). Private groups' posts are only visible to
-    // that group's members — this is the feed-side half of that rule; the
-    // Firestore rules are the authoritative half.
-    const myGroups = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
-    posts = posts.filter(p => !p.groupId || p.groupPrivacy !== 'private' || myGroups.has(p.groupId));
-    if (posts.length > 0) _feedOldestTs = posts[posts.length - 1].createdAt || 0;
+    // Once local posts are exhausted, skip re-querying Firestore for them
+    // every scroll tick — but keep going below for Bluesky, which isn't
+    // exhaustible the same way.
+    if (!_feedExhausted) {
+      const snap = await window.XF.getPostsPage(FEED_PAGE_SIZE + 1, _feedOldestTs || undefined);
+      if (snap.exists()) snap.forEach(c => posts.push({ id: c.key, ...c.val() }));
+      posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      if (posts.length <= FEED_PAGE_SIZE) _feedExhausted = true;
+      posts = posts.slice(0, FEED_PAGE_SIZE);
+      posts = posts.filter(p => !blockedUids.has(p.authorUid));
+      // Group posts: public groups' posts appear in everyone's feed (members
+      // and non-members alike). Private groups' posts are only visible to
+      // that group's members — this is the feed-side half of that rule; the
+      // Firestore rules are the authoritative half.
+      const myGroups = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
+      posts = posts.filter(p => !p.groupId || p.groupPrivacy !== 'private' || myGroups.has(p.groupId));
+      if (posts.length > 0) _feedOldestTs = posts[posts.length - 1].createdAt || 0;
+    }
     spinner.remove();
     const uids = [...new Set(posts.map(p => p.authorUid).filter(u => u && u !== CLAUDE_ENGINEER_UID))];
     const profiles = {};
@@ -137,14 +148,26 @@ async function _loadFeedPage(container, isFirst) {
     // Mixed-in real Bluesky posts (see bluesky.js) — a small batch per
     // page load, merged into the timeline by actual post time rather than
     // just appended, so the feed doesn't read as "our posts, then a wad of
-    // Bluesky posts at the end."
+    // Bluesky posts at the end." This runs even after local posts are
+    // exhausted — Bluesky has far more than 20-30 posts to give, so there's
+    // no reason infinite scroll should go quiet just because your own
+    // local posts ran out.
     let blueskyItems = [];
+    let blueskyFailed = false;
     if (typeof fetchBlueskyBatch === 'function') {
       try {
         const bskyPosts = await fetchBlueskyBatch(isFirst ? 6 : 3);
         blueskyItems = bskyPosts.map(p => ({ ts: p.createdAt || Date.now(), html: blueskyPostHTML(p) }));
-      } catch (e) { /* Bluesky being unreachable should never break the real feed */ }
+        if (!bskyPosts.length) blueskyFailed = true;
+      } catch (e) { blueskyFailed = true; /* Bluesky being unreachable should never break the real feed */ }
+    } else {
+      blueskyFailed = true;
     }
+    // Only truly "done" once local posts are exhausted AND this particular
+    // fetch came back with no Bluesky posts either — a single thin batch
+    // (a niche that didn't classify many posts this round) shouldn't stop
+    // scrolling on its own, since the next rotation might turn up more.
+    if (_feedExhausted && blueskyFailed) _feedFullyDone = true;
 
     const mergedItems = localItems.concat(blueskyItems).sort((a, b) => b.ts - a.ts);
     if (isFirst && mergedItems.length === 0) {
@@ -174,8 +197,10 @@ async function _loadFeedPage(container, isFirst) {
     if (isFirst) { container.innerHTML = ''; container.appendChild(sentinel); }
     const wrapper = document.createElement('div'); wrapper.innerHTML = html;
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
-    if (_feedExhausted) {
+    if (_feedFullyDone) {
       sentinel.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">You\'re all caught up ✓</div>';
+    } else {
+      sentinel.innerHTML = '';
     }
   } catch (err) {
     if (spinner) spinner.remove();
@@ -187,7 +212,7 @@ async function _loadFeedPage(container, isFirst) {
 function _attachFeedScrollListener(container) {
   const mc = document.querySelector('.main-content');
   _feedScrollHandler = function () {
-    if (_feedLoading || _feedExhausted) return;
+    if (_feedLoading || _feedFullyDone) return;
     const sentinel = $('feedSentinel'); if (!sentinel) return;
     const rect = sentinel.getBoundingClientRect();
     if (rect.top < window.innerHeight + 300) _loadFeedPage(container, false);

@@ -32,7 +32,10 @@ let _reelsNextPage = null;
 let _reelsTopic = '';       // explicit search override, from the search box
 let _reelsLoading = false;
 let _reelsObserver = null;
-let _reelsMuted = true;
+let _reelsMuted = (function () {
+  try { return localStorage.getItem('bumbook_reels_muted') !== '0'; } // default true (muted) unless explicitly unmuted before
+  catch (e) { return true; } // localStorage can throw in some private-browsing modes — fail safe to muted
+})();
 let _reelStatsCache = {};   // videoId -> { viewCount, likeCount } — REAL YouTube numbers
 let _myReelLikes = new Set(); // videoIds the current user has personally liked in-app
 
@@ -338,6 +341,7 @@ async function toggleReelLike(videoId, uiIndex) {
 
 function toggleReelMute() {
   _reelsMuted = !_reelsMuted;
+  try { localStorage.setItem('bumbook_reels_muted', _reelsMuted ? '1' : '0'); } catch (e) {} // remembers the choice for next time — no more re-tapping unmute every session
   const icon = $('reelMuteIcon');
   if (icon) icon.innerHTML = _reelsMuted ? ICON_MUTED : ICON_UNMUTED;
   // Remount whatever is currently on screen so the new mute state applies.
