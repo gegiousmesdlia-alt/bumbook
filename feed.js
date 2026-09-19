@@ -34,10 +34,10 @@ function _teardownFeed() {
 ═══════════════════════════════════════════════════════════════════════════ */
 async function _fetchForYouVideos(count) {
   try {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ action: 'reels' });
     const topic = (typeof _pickReelTopic === 'function') ? _pickReelTopic() : '';
     if (topic) params.set('q', topic);
-    const resp = await fetch('/api/youtube-reels?' + params.toString());
+    const resp = await fetch('/api/youtube?' + params.toString());
     const data = await resp.json();
     if (!data.configured || data.error || !data.items) return [];
     return data.items.slice(0, count).map(v => ({ ...v, topic: data.topic || topic }));

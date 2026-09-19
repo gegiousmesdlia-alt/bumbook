@@ -74,7 +74,7 @@ async function renderChannelPage(channelId) {
   _channelVideos = []; _channelNextPage = null;
 
   try {
-    const resp = await fetch('/api/youtube-channel?channelId=' + encodeURIComponent(channelId));
+    const resp = await fetch('/api/youtube?action=channel&channelId=' + encodeURIComponent(channelId));
     const data = await resp.json();
 
     if (!data.configured) { container.innerHTML = _channelMsgHTML('Not set up yet', 'An admin needs to add a YouTube API key.'); return; }
@@ -133,7 +133,7 @@ function _renderChannelVideoGrid() {
 async function loadMoreChannelVideos() {
   if (!_activeChannel || !_channelNextPage) return;
   try {
-    const resp = await fetch(`/api/youtube-channel?channelId=${encodeURIComponent(_activeChannel.channelId)}&pageToken=${encodeURIComponent(_channelNextPage)}`);
+    const resp = await fetch(`/api/youtube?action=channel&channelId=${encodeURIComponent(_activeChannel.channelId)}&pageToken=${encodeURIComponent(_channelNextPage)}`);
     const data = await resp.json();
     if (data.videos) _channelVideos = _channelVideos.concat(data.videos);
     _channelNextPage = data.nextPageToken || null;

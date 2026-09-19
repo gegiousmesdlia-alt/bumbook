@@ -1,4 +1,4 @@
-// bluesky.js — fetches real Bluesky posts (via /api/bluesky-feed) and
+// bluesky.js — fetches real Bluesky posts (via /api/bluesky?action=feed) and
 // renders them as feed cards, clearly marked as external content.
 //
 // These are real posts by real Bluesky accounts, so likes/reposts/replies
@@ -26,9 +26,9 @@ function _nextBlueskyNiche() {
 async function fetchBlueskyBatch(count) {
   const niche = _nextBlueskyNiche();
   try {
-    const params = new URLSearchParams({ niche });
+    const params = new URLSearchParams({ niche, action: 'feed' });
     if (_blueskyCursors[niche]) params.set('cursor', _blueskyCursors[niche]);
-    const resp = await fetch('/api/bluesky-feed?' + params.toString());
+    const resp = await fetch('/api/bluesky?' + params.toString());
     const data = await resp.json();
     if (!data.configured || data.error || !data.items) return [];
     if (data.cursor) _blueskyCursors[niche] = data.cursor;
@@ -38,22 +38,23 @@ async function fetchBlueskyBatch(count) {
 
 async function fetchBlueskyProfile(actor) {
   try {
-    const resp = await fetch('/api/bluesky-profile?actor=' + encodeURIComponent(actor));
+    const resp = await fetch('/api/bluesky?action=profile&actor=' + encodeURIComponent(actor));
     return await resp.json();
   } catch (e) { return { profile: null, posts: [], error: 'fetch' }; }
 }
 
 async function fetchBlueskyPost(uri) {
   try {
-    const resp = await fetch('/api/bluesky-post?uri=' + encodeURIComponent(uri));
+    const resp = await fetch('/api/bluesky?action=post&uri=' + encodeURIComponent(uri));
     return await resp.json();
   } catch (e) { return { post: null, replies: [], error: 'fetch' }; }
 }
 
 async function fetchBlueskyDiscoverAccounts(niche) {
   try {
-    const params = niche ? '?niche=' + encodeURIComponent(niche) : '';
-    const resp = await fetch('/api/bluesky-discover' + params);
+    const params = new URLSearchParams({ action: 'discover' });
+    if (niche) params.set('niche', niche);
+    const resp = await fetch('/api/bluesky?' + params.toString());
     const data = await resp.json();
     return (data.configured && !data.error) ? (data.accounts || []) : [];
   } catch (e) { return []; }

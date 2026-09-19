@@ -4,7 +4,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    HOW THIS WORKS
    ─────────────────────────────────────────────────────────────────────────
-   Videos come from /api/youtube-reels (server-side so the API key stays
+   Videos come from /api/youtube?action=reels (server-side so the API key stays
    secret and responses are CDN-cached — see that file for the quota math).
 
    Playback is a per-slide YouTube <iframe>. The important part is that we
@@ -106,12 +106,12 @@ async function _loadReels(isFirst = false) {
   if (_reelsLoading) return;
   _reelsLoading = true;
   try {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ action: 'reels' });
     const topic = _pickReelTopic();
     if (topic) params.set('q', topic);
     if (!isFirst && _reelsNextPage) params.set('pageToken', _reelsNextPage);
 
-    const resp = await fetch('/api/youtube-reels?' + params.toString());
+    const resp = await fetch('/api/youtube?' + params.toString());
     const data = await resp.json();
 
     if (!data.configured) { if (isFirst) _renderReelsMessage('Reels aren\'t set up yet', 'An admin needs to add a YouTube API key. See YOUTUBE_REELS_SETUP.md'); return; }
@@ -144,7 +144,7 @@ async function _loadReels(isFirst = false) {
 async function _fetchReelStatsBatch(videoIds) {
   if (!videoIds.length) return;
   try {
-    const resp = await fetch('/api/youtube-stats?ids=' + videoIds.join(','));
+    const resp = await fetch('/api/youtube?action=stats&ids=' + videoIds.join(','));
     const data = await resp.json();
     if (data.stats) Object.assign(_reelStatsCache, data.stats);
     videoIds.forEach(vid => {
