@@ -1,0 +1,12 @@
+{
+  "client_id": "https://bumbook.vercel.app/oauth-client-metadata.json",
+  "client_name": "Bum Book",
+  "client_uri": "https://bumbook.vercel.app",
+  "redirect_uris": ["https://bumbook.vercel.app/api/bsky-oauth-callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "application_type": "web",
+  "token_endpoint_auth_method": "none",
+  "dpop_bound_access_tokens": true,
+  "scope": "atproto transition:generic transition:chat.bsky"
+}

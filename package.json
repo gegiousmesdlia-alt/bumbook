@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "web-push": "^3.6.7",
-    "firebase-admin": "^12.6.0"
+    "firebase-admin": "^12.6.0",
+    "@atproto/oauth-client-node": "^0.2.16",
+    "@atproto/api": "^0.13.35"
   }
 }

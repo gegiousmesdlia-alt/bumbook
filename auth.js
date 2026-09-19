@@ -208,7 +208,13 @@ function onPageActivated(page, opts = {}) {
       if (dmUid) openDMWith(dmUid); else renderConversations();
     }
     if (page === 'profile')       renderOwnProfile();
-    if (page === 'settings')      syncThemeSettingsUI();
+    if (page === 'settings') {
+      syncThemeSettingsUI();
+      if (typeof renderBskyConnectSection === 'function') renderBskyConnectSection();
+      const bskyConnected = new URLSearchParams(window.location.search).get('bskyConnected');
+      if (bskyConnected === '1') showToast('Bluesky connected ✓');
+      else if (bskyConnected === '0') showToast('Bluesky connection failed — try again');
+    }
     if (page === 'reels')         renderReels();
     if (page === 'channel')       renderChannelPage(opts.channelId);
     if (page === 'groups')        renderGroupsPage();

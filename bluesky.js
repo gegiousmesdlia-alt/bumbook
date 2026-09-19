@@ -50,6 +50,40 @@ async function fetchBlueskyPost(uri) {
   } catch (e) { return { post: null, replies: [], error: 'fetch' }; }
 }
 
+async function fetchBlueskyDiscoverAccounts(niche) {
+  try {
+    const params = niche ? '?niche=' + encodeURIComponent(niche) : '';
+    const resp = await fetch('/api/bluesky-discover' + params);
+    const data = await resp.json();
+    return (data.configured && !data.error) ? (data.accounts || []) : [];
+  } catch (e) { return []; }
+}
+
+/* ── Discover page section — real Bluesky accounts, clearly separate from
+   bumbook members (see index.html: its own labeled section, not mixed
+   into "People you might know"). Tapping opens the same in-app profile
+   page used from the feed — nothing here pretends these are connectable
+   bumbook users; there's no Connect button, just "View profile." */
+async function renderDiscoverBsky() {
+  const container = $('discoverBsky');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  const niche = BLUESKY_NICHE_ROTATION[Math.floor(Math.random() * BLUESKY_NICHE_ROTATION.length)];
+  const accounts = await fetchBlueskyDiscoverAccounts(niche);
+  if (!accounts.length) { container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">Could not load Bluesky accounts right now</div></div>'; return; }
+
+  container.innerHTML = accounts.map(a => `
+    <div class="people-card" onclick="openBskyProfile('${escapeAttrJS(a.did)}')">
+      ${_blueskyAvatarHTML(a, 'md')}
+      <div class="people-card-info">
+        <div class="people-card-name">${escapeHTML(a.displayName)}${typeof a.followersCount === 'number' ? ` <span style="font-weight:400;color:var(--text-dim);font-size:0.8rem">· ${formatCount(a.followersCount)} followers</span>` : ''}</div>
+        <div class="people-card-handle">@${escapeHTML(a.handle)}</div>
+        ${a.description ? `<div class="people-card-bio">${escapeHTML(a.description)}</div>` : ''}
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openBskyProfile('${escapeAttrJS(a.did)}')">View</button>
+    </div>`).join('');
+}
+
 const BLUESKY_NICHE_LABELS = {
   tech: 'Tech', sports: 'Sports', news: 'News', comedy: 'Comedy',
   music: 'Music', gaming: 'Gaming', fashion: 'Fashion', food: 'Food'
@@ -189,3 +223,59 @@ async function renderBskyPost(uri) {
 // constructed ourselves), but escape defensively anyway before dropping
 // into an inline onclick attribute.
 function escapeAttrJS(s) { return String(s || '').replace(/'/g, "\\'"); }
+
+/* ── Settings page: Connect Bluesky account (for sending real DMs) ─────
+ * ⚠️ This is the ONLY part of the Bluesky integration that holds real
+ * credentials on someone's behalf — everything else in this file
+ * (feed posts, profiles, discover) is read-only and keyless. See
+ * api/_bskyOAuthClient.js for what gets stored and where. */
+async function renderBskyConnectSection() {
+  const container = $('bskyConnectSection');
+  if (!container || !currentUser) return;
+  container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  try {
+    const snap = await window.XF.get('bskyConnections/' + currentUser.uid);
+    if (snap.exists()) {
+      const c = snap.val();
+      container.innerHTML = `<div class="privacy-toggle-row" style="margin:0">
+        <span class="privacy-toggle-label">🦋 Connected as @${escapeHTML(c.handle)}</span>
+        <button class="btn btn-outline btn-sm" onclick="disconnectBsky()">Disconnect</button>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="privacy-toggle-row" style="margin:0">
+        <span class="privacy-toggle-label">🦋 Bluesky — connect to send real DMs from bumbook</span>
+        <button class="btn btn-primary btn-sm" onclick="startBskyConnect()">Connect</button>
+      </div>`;
+    }
+  } catch (e) {
+    container.innerHTML = '<div class="privacy-toggle-label" style="color:var(--text-dim)">Could not load connection status</div>';
+  }
+}
+
+async function startBskyConnect() {
+  const handle = prompt('Your Bluesky handle (e.g. yourname.bsky.social):');
+  if (!handle) return;
+  try {
+    const idToken = await currentUser.getIdToken();
+    const resp = await fetch('/api/bsky-connect-start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({ handle })
+    });
+    const data = await resp.json();
+    if (data.url) { window.location.href = data.url; return; }
+    showToast('Could not start Bluesky connection: ' + (data.message || data.error || 'unknown error'));
+  } catch (e) { showToast('Could not start Bluesky connection'); }
+}
+
+async function disconnectBsky() {
+  // NOTE: this only removes bumbook's OWN record/session for this
+  // account — it does not revoke the grant on Bluesky's side. A more
+  // complete disconnect would also call the OAuth client's revoke, which
+  // isn't wired up yet in this first pass (see bsky-connect-start.js's
+  // header for the staged build plan).
+  if (!confirm('Disconnect your Bluesky account from bumbook?')) return;
+  try { await window.XF.remove('bskyConnections/' + currentUser.uid); } catch (e) {}
+  renderBskyConnectSection();
+}
+

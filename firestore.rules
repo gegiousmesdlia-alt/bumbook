@@ -219,5 +219,18 @@ service cloud.firestore {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
+
+    /* ── bskyConnections/{uid} ── "which Bluesky account has this bumbook
+       user connected" lookup (did + handle only — the actual OAuth
+       tokens/DPoP key live in bskyOAuthSessions, which has NO rule below
+       and is therefore fully deny-by-default: only server-side Admin SDK
+       code can ever touch it). Client can read its own connection status
+       to show in Settings; only the server (via the OAuth callback) ever
+       writes it. ─────────────────────────────────────────────────────── */
+    match /bskyConnections/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create, update: if false; // only the server (OAuth callback) writes this
+      allow delete: if isSelf(uid) || isAdmin(); // "Disconnect" button removes bumbook's own lookup doc — the actual tokens in bskyOAuthSessions are untouched by this and need a real revoke, not yet wired up
+    }
   }
 }

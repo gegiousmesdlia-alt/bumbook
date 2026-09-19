@@ -5,6 +5,7 @@
 async function renderDiscover() {
   const container = $('discoverPeople'); if (!container) return;
   container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  if (typeof renderDiscoverBsky === 'function') renderDiscoverBsky(); // independent section, own loading state — a slow/failed Bluesky fetch shouldn't block the real members list below
   try {
     const snap = await window.XF.get('users');
     const blockedUids = await getBlockedUids();
