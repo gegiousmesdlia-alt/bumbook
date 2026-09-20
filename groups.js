@@ -55,15 +55,20 @@ async function renderGroupsPage() {
 function searchGroups(query) {
   const q = (query || '').trim().toLowerCase();
   const filtered = q ? _allGroupsCache.filter(g => (g.name || '').toLowerCase().includes(q)) : _allGroupsCache;
-  _renderGroupsList(filtered);
+  _renderGroupsList(filtered, !!q);
 }
 
-function _renderGroupsList(groups) {
+function _renderGroupsList(groups, isSearching) {
   const container = $('groupsListContainer');
   if (!container) return;
   const mine = myGroupIds();
   const myGroups = groups.filter(g => mine.has(g.id));
-  const other = groups.filter(g => !mine.has(g.id));
+  // BUG FIX: private groups you're not in used to show in the default
+  // browse list — this only excludes them from BROWSING. Explicitly
+  // searching a private group's exact name still finds it (same as most
+  // apps: private groups are unlisted, not literally unfindable), so
+  // "search for it, then request to join" still works as expected.
+  const other = groups.filter(g => !mine.has(g.id) && (isSearching || g.privacy !== 'private'));
 
   if (groups.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-title">No groups yet</div><div class="empty-state-desc">Be the first to start one</div></div>';
@@ -315,6 +320,19 @@ async function _renderGroupPosts() {
       </div>
     </div>` : '';
 
+  // Fetched independently from the local-posts read below, and never
+  // allowed to fail the whole tab: if Firestore reads are ever exhausted
+  // (has happened before during testing), the local posts read throws —
+  // that shouldn't also hide Bluesky content that loaded from a totally
+  // separate service and never touched Firestore at all.
+  let bskyItems = [];
+  if (_activeGroup.blueskyFeedActor && typeof fetchBlueskyProfile === 'function') {
+    try {
+      const data = await fetchBlueskyProfile(_activeGroup.blueskyFeedActor);
+      bskyItems = (data.posts || []).map(p => ({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
+    } catch (e) { /* Bluesky itself being unreachable — separate concern, local posts below aren't affected by this either */ }
+  }
+
   try {
     const snap = await window.XF.get('posts');
     const posts = [];
@@ -325,18 +343,6 @@ async function _renderGroupPosts() {
     const profiles = {};
     await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
 
-    // Merge in the group's connected Bluesky account, if any (set via the
-    // About tab) — same read-only treatment as everywhere else this
-    // integration shows up: real posts, clearly badged, no fake local
-    // engagement written against them.
-    let bskyItems = [];
-    if (_activeGroup.blueskyFeedActor && typeof fetchBlueskyProfile === 'function') {
-      try {
-        const data = await fetchBlueskyProfile(_activeGroup.blueskyFeedActor);
-        bskyItems = (data.posts || []).map(p => ({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
-      } catch (e) { /* group's own posts should still render even if Bluesky is unreachable */ }
-    }
-
     const localItems = posts.map(p => ({ ts: p.createdAt || 0, html: postHTML(p, profiles[p.authorUid]) }));
     const merged = localItems.concat(bskyItems).sort((a, b) => b.ts - a.ts);
 
@@ -346,7 +352,13 @@ async function _renderGroupPosts() {
     }
     el.innerHTML = composer + merged.map(item => item.html).join('');
   } catch (e) {
-    el.innerHTML = composer + '<div class="empty-state"><div class="empty-state-title">Could not load posts</div></div>';
+    // Local posts failed (e.g. Firestore quota) — still show the Bluesky
+    // content fetched above, since that never depended on Firestore at all.
+    if (bskyItems.length) {
+      el.innerHTML = composer + '<div style="padding:8px 16px;color:var(--text-dim);font-size:0.8rem">Group posts unavailable right now — showing Bluesky content only</div>' + bskyItems.map(item => item.html).join('');
+    } else {
+      el.innerHTML = composer + '<div class="empty-state"><div class="empty-state-title">Could not load posts</div></div>';
+    }
   }
 }
 

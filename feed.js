@@ -132,6 +132,41 @@ function forYouTrayHTML(videos) {
   </div>`;
 }
 
+async function _fetchSuggestedGroups(count) {
+  try {
+    const snap = await window.XF.get('groups');
+    if (!snap.exists()) return [];
+    const mine = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
+    const groups = [];
+    snap.forEach(c => { const g = { id: c.key, ...c.val() }; if (g.privacy !== 'private' && !mine.has(g.id)) groups.push(g); });
+    // Shuffle — otherwise the same handful of oldest public groups would
+    // show every single time, same issue as the Discover people list had.
+    for (let i = groups.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [groups[i], groups[j]] = [groups[j], groups[i]];
+    }
+    return groups.slice(0, count);
+  } catch (e) { return []; }
+}
+
+function suggestedGroupsTrayHTML(groups) {
+  if (!groups.length) return '';
+  const cards = groups.map(g => `
+    <div class="fy-reel-card" style="width:150px" onclick="showPage('group-detail',{groupId:'${g.id}'})">
+      <div style="height:80px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:1.6rem">👥</div>
+      <div class="fy-reel-title">${escapeHTML(g.name || 'Group')}</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;margin-top:4px" onclick="event.stopPropagation();joinGroup('${g.id}')">Join</button>
+    </div>`).join('');
+  return `<div class="fy-reel-tray">
+    <div class="fy-reel-tray-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Groups you might like</span>
+      <span class="fy-reel-tray-more" onclick="event.stopPropagation();showPage('groups')">See all</span>
+    </div>
+    <div class="fy-reel-tray-scroll">${cards}</div>
+  </div>`;
+}
+
 async function renderFeed() {
   const container = $('feedPosts');
   if (!container) return;
@@ -260,7 +295,12 @@ async function _loadFeedPage(container, isFirst) {
     let html;
     if (isFirst) {
       const foryou = await _fetchForYouVideos(8);
-      html = forYouTrayHTML(foryou) + postHTMLs.join('');
+      // "Sometimes" on purpose, per how this was asked for — a permanent
+      // fixture would get repetitive fast; a ~40% chance per fresh feed
+      // load keeps it feeling occasional rather than constant.
+      const showGroupSuggestions = Math.random() < 0.4;
+      const suggestedGroups = showGroupSuggestions ? await _fetchSuggestedGroups(6) : [];
+      html = forYouTrayHTML(foryou) + suggestedGroupsTrayHTML(suggestedGroups) + postHTMLs.join('');
     } else {
       html = postHTMLs.join('');
     }
