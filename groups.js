@@ -321,14 +321,30 @@ async function _renderGroupPosts() {
     if (snap.exists()) snap.forEach(c => { const p = { id: c.key, ...c.val() }; if (p.groupId === _activeGroup.id) posts.push(p); });
     posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    if (posts.length === 0) {
-      el.innerHTML = composer + '<div class="empty-state" style="padding:30px 16px"><div class="empty-state-title">No posts yet</div><div class="empty-state-desc">' + (isMember ? 'Be the first to post' : 'Join to start posting') + '</div></div>';
-      return;
-    }
     const uids = [...new Set(posts.map(p => p.authorUid).filter(Boolean))];
     const profiles = {};
     await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
-    el.innerHTML = composer + posts.map(p => postHTML(p, profiles[p.authorUid])).join('');
+
+    // Merge in the group's connected Bluesky account, if any (set via the
+    // About tab) — same read-only treatment as everywhere else this
+    // integration shows up: real posts, clearly badged, no fake local
+    // engagement written against them.
+    let bskyItems = [];
+    if (_activeGroup.blueskyFeedActor && typeof fetchBlueskyProfile === 'function') {
+      try {
+        const data = await fetchBlueskyProfile(_activeGroup.blueskyFeedActor);
+        bskyItems = (data.posts || []).map(p => ({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
+      } catch (e) { /* group's own posts should still render even if Bluesky is unreachable */ }
+    }
+
+    const localItems = posts.map(p => ({ ts: p.createdAt || 0, html: postHTML(p, profiles[p.authorUid]) }));
+    const merged = localItems.concat(bskyItems).sort((a, b) => b.ts - a.ts);
+
+    if (merged.length === 0) {
+      el.innerHTML = composer + '<div class="empty-state" style="padding:30px 16px"><div class="empty-state-title">No posts yet</div><div class="empty-state-desc">' + (isMember ? 'Be the first to post' : 'Join to start posting') + '</div></div>';
+      return;
+    }
+    el.innerHTML = composer + merged.map(item => item.html).join('');
   } catch (e) {
     el.innerHTML = composer + '<div class="empty-state"><div class="empty-state-title">Could not load posts</div></div>';
   }
@@ -365,7 +381,8 @@ async function submitGroupPost() {
       groupName: _activeGroup.name,
       groupPrivacy: _activeGroup.privacy,
       createdAt: Date.now(),
-      commentCount: 0
+      commentCount: 0,
+      hashtags: extractHashtags(text)
     });
     await window.XF.update('users/' + currentUser.uid, { postsCount: (currentProfile.postsCount || 0) + 1 });
     currentProfile.postsCount = (currentProfile.postsCount || 0) + 1;
@@ -414,13 +431,32 @@ async function _renderGroupMembers() {
 function _renderGroupAbout() {
   const el = $('groupTabContent'); if (!el || !_activeGroup) return;
   const g = _activeGroup;
+  const isAdmin = _activeGroupRole === 'admin';
   el.innerHTML = `<div style="padding:16px">
     <div class="sidebar-section-title" style="padding:0 0 6px">Description</div>
     <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${escapeHTML(g.description || 'No description yet.')}</div>
     <div class="sidebar-section-title" style="padding:0 0 6px">Privacy</div>
     <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.privacy === 'private' ? 'Private — only members can see posts. ' + (g.joinMode === 'invite' ? 'Invite-only.' : 'Anyone can request to join.') : 'Public — anyone can see posts and join.'}</div>
-    ${_activeGroupRole === 'admin' ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteGroupConfirm('${g.id}')">Delete group</button>` : ''}
+    <div class="sidebar-section-title" style="padding:0 0 6px">🦋 Bluesky feed</div>
+    ${isAdmin ? `
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px">Show a real Bluesky account's posts in this group's Posts tab, clearly marked as external — not written by group members.</div>
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <input id="groupBskyActorInput" class="form-input" placeholder="handle.bsky.social" value="${escapeHTML(g.blueskyFeedActor || '')}" style="flex:1">
+        <button class="btn btn-primary btn-sm" onclick="saveGroupBskyFeed('${g.id}')">Save</button>
+      </div>` : `
+      <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.blueskyFeedActor ? 'Showing posts from @' + escapeHTML(g.blueskyFeedActor) : 'None set.'}</div>`}
+    ${isAdmin ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteGroupConfirm('${g.id}')">Delete group</button>` : ''}
   </div>`;
+}
+
+async function saveGroupBskyFeed(groupId) {
+  const input = $('groupBskyActorInput');
+  const handle = (input?.value || '').trim().replace(/^@/, '');
+  try {
+    await window.XF.update('groups/' + groupId, { blueskyFeedActor: handle || null });
+    _activeGroup.blueskyFeedActor = handle || null;
+    showToast(handle ? 'Bluesky feed connected' : 'Bluesky feed removed');
+  } catch (e) { showToast('Could not save'); }
 }
 
 /* ── Requests tab (admin only, private+request groups) ── */

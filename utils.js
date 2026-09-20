@@ -346,3 +346,13 @@ async function injectBioLinkPreview(containerId, bio) {
 
 /* ─── MODAL CLOSE ─── */
 function closeModal(id) { const m = $(id); if (m) m.classList.remove('open'); }
+
+/* Pulls #hashtags out of post text at creation time, so Discover's
+   hashtag search has real data to query against (Firestore has no
+   full-text search, but array-contains on a stored hashtags field
+   works well for this). Lowercased + deduped; strips the # itself. */
+function extractHashtags(text) {
+  if (!text) return [];
+  const matches = String(text).match(/#([\p{L}\p{N}_]+)/gu) || [];
+  return [...new Set(matches.map(m => m.slice(1).toLowerCase()))].slice(0, 20);
+}

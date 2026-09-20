@@ -207,6 +207,7 @@ module.exports = async (req, res) => {
         // thinking a round is already partway done (or finished) when all
         // the data it was tracking has just been deleted.
         await db.collection('seedEngagementState').doc('cursor').delete().catch(() => {});
+        await db.collection('seedEngagementState').doc('seedUserCache').delete().catch(() => {});
       }
 
     } else {

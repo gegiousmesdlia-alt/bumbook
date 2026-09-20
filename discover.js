@@ -1,27 +1,88 @@
 // discover.js — X Club v7 — Discover, Search, Connections, Block/Unblock
 'use strict';
 
-/* ─── DISCOVER PAGE ─── */
+/* ═══════════════════════════════════════════════════════════════════════
+   DISCOVER PAGE — v2: search-driven, shows nothing until you type.
+   Previously this page always showed a "People you might know" list
+   (plus a separate always-visible Bluesky accounts browser) whether you
+   searched or not. Now it's a single search box across five categories —
+   people, Bluesky accounts, hashtags, posts, videos, and groups — and
+   shows an empty prompt instead of any content until you actually search.
+═══════════════════════════════════════════════════════════════════════════ */
+let _discoverCurrentQuery = '';
+let _discoverSearchDebounce = null;
+
 async function renderDiscover() {
-  const container = $('discoverPeople'); if (!container) return;
-  container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
-  if (typeof renderDiscoverBsky === 'function') renderDiscoverBsky(); // independent section, own loading state — a slow/failed Bluesky fetch shouldn't block the real members list below
+  const input = $('discoverSearchInput');
+  if (input) input.value = _discoverCurrentQuery;
+  if (_discoverCurrentQuery) { await _runDiscoverSearch(_discoverCurrentQuery); return; }
+  _showDiscoverEmptyPrompt();
+}
+
+function _showDiscoverEmptyPrompt() {
+  const container = $('discoverResults');
+  if (container) container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⌕</div><div class="empty-state-title">Search Discover</div><div class="empty-state-desc">Find people, posts, hashtags, videos, and groups</div></div>';
+}
+
+function handleDiscoverSearch(query) {
+  _discoverCurrentQuery = (query || '').trim();
+  clearTimeout(_discoverSearchDebounce);
+  if (!_discoverCurrentQuery) { _showDiscoverEmptyPrompt(); return; }
+  const container = $('discoverResults');
+  if (container) container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  _discoverSearchDebounce = setTimeout(() => _runDiscoverSearch(_discoverCurrentQuery), 350);
+}
+
+async function _runDiscoverSearch(q) {
+  const container = $('discoverResults');
+  if (!container) return;
+  const isHashtagQuery = q.startsWith('#');
+  const tag = (isHashtagQuery ? q.slice(1) : q).toLowerCase().trim();
+
+  const [hashtagHTML, peopleHTML, bskyHTML, postsHTML, videosHTML, groupsHTML] = await Promise.all([
+    _searchDiscoverHashtag(tag),
+    _searchDiscoverPeople(q),
+    _searchDiscoverBsky(q),
+    isHashtagQuery ? Promise.resolve('') : _searchDiscoverPosts(q),
+    _searchDiscoverVideos(q),
+    _searchDiscoverGroups(q)
+  ]);
+
+  const sections = [
+    hashtagHTML && _discoverSection('#' + escapeHTML(tag), hashtagHTML),
+    peopleHTML && _discoverSection('People', peopleHTML),
+    bskyHTML && _discoverSection('🦋 Bluesky accounts', bskyHTML),
+    postsHTML && _discoverSection('Posts', postsHTML),
+    videosHTML && _discoverSection('Videos', videosHTML),
+    groupsHTML && _discoverSection('Groups', groupsHTML)
+  ].filter(Boolean);
+
+  container.innerHTML = sections.length ? sections.join('') : `<div class="empty-state"><div class="empty-state-title">No results for "${escapeHTML(q)}"</div></div>`;
+}
+
+function _discoverSection(title, innerHTML) {
+  return `<div class="page-header" style="position:static;border-bottom:none;padding-bottom:0;margin-top:8px"><div style="font-weight:700">${title}</div></div>${innerHTML}`;
+}
+
+async function _searchDiscoverPeople(q) {
   try {
     const snap = await window.XF.get('users');
     const blockedUids = await getBlockedUids();
-    const people = [];
-    if (snap.exists()) snap.forEach(c => { if (c.key !== currentUser?.uid && !blockedUids.has(c.key)) people.push(c.val()); });
-    if (people.length === 0) { container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⊛</div><div class="empty-state-title">No members yet</div></div>`; return; }
-
-    // Fetch my connections + pending requests in parallel
+    const lower = q.toLowerCase();
+    const matches = [];
+    if (snap.exists()) snap.forEach(c => {
+      const p = c.val();
+      if (p.uid === currentUser?.uid || blockedUids.has(p.uid)) return;
+      if ((p.displayName || '').toLowerCase().includes(lower) || (p.handle || '').toLowerCase().includes(lower)) matches.push(p);
+    });
+    if (!matches.length) return '';
     const [myConnSnap, reqSnap] = await Promise.all([
       currentUser ? window.XF.get('connections/' + currentUser.uid) : Promise.resolve(null),
       currentUser ? window.XF.get('connectionRequests') : Promise.resolve(null)
     ]);
     const myConns = myConnSnap?.exists() ? myConnSnap.val() : {};
     const allReqs = reqSnap?.exists() ? reqSnap.val() : {};
-
-    container.innerHTML = people.map(p => {
+    return matches.slice(0, 8).map(p => {
       const status = _getConnStatus(p.uid, myConns, allReqs);
       const incomingReqId = _getIncomingReqId(p.uid, allReqs);
       return `<div class="people-card" onclick="openUserProfile('${p.uid}',event)">
@@ -34,7 +95,98 @@ async function renderDiscover() {
         <div onclick="event.stopPropagation()">${connectBtnHTML(p.uid, status, incomingReqId)}</div>
       </div>`;
     }).join('');
-  } catch (err) { container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">Could not load members</div></div>'; }
+  } catch (e) { return ''; }
+}
+
+async function _searchDiscoverBsky(q) {
+  if (typeof escapeAttrJS !== 'function' || typeof _blueskyAvatarHTML !== 'function') return ''; // bluesky.js not loaded
+  try {
+    const resp = await fetch('/api/bluesky?action=searchActors&q=' + encodeURIComponent(q));
+    const data = await resp.json();
+    if (!data.configured || data.error || !data.accounts?.length) return '';
+    return data.accounts.map(a => `<div class="people-card" onclick="openBskyProfile('${escapeAttrJS(a.did)}')">
+      ${_blueskyAvatarHTML(a, 'md')}
+      <div class="people-card-info">
+        <div class="people-card-name">${escapeHTML(a.displayName)}</div>
+        <div class="people-card-handle">@${escapeHTML(a.handle)}</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openBskyProfile('${escapeAttrJS(a.did)}')">View</button>
+    </div>`).join('');
+  } catch (e) { return ''; }
+}
+
+/* Requires a Firestore composite index the first time it actually runs
+   (array-contains + orderBy a different field) — Firestore will throw
+   with a direct console link to create it. Caught gracefully here so a
+   missing index degrades to "no hashtag results" instead of breaking the
+   rest of the search. NOTE: only posts created AFTER this feature shipped
+   have a hashtags field — older/seeded posts won't match. */
+async function _searchDiscoverHashtag(tag) {
+  if (!tag) return '';
+  try {
+    const snap = await firebase.firestore().collection('posts').where('hashtags', 'array-contains', tag).orderBy('createdAt', 'desc').limit(10).get();
+    if (snap.empty) return '';
+    const posts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const uids = [...new Set(posts.map(p => p.authorUid).filter(Boolean))];
+    const profiles = {};
+    await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
+    return posts.map(p => postHTML(p, profiles[p.authorUid])).join('');
+  } catch (e) { return ''; }
+}
+
+/* Not true full-text search — Firestore has none built in. This scans a
+   bounded window of recent posts client-side for a substring match, which
+   is good enough at this scale but won't find an old post buried deep in
+   history. A real search index (Algolia/Typesense) is the eventual fix if
+   post volume grows enough for this to matter. */
+async function _searchDiscoverPosts(q) {
+  try {
+    const snap = await window.XF.getPostsPage(60);
+    const posts = [];
+    if (snap.exists()) snap.forEach(c => posts.push({ id: c.key, ...c.val() }));
+    const lower = q.toLowerCase();
+    const matches = posts.filter(p => (p.text || '').toLowerCase().includes(lower)).slice(0, 10);
+    if (!matches.length) return '';
+    const uids = [...new Set(matches.map(p => p.authorUid).filter(Boolean))];
+    const profiles = {};
+    await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
+    return matches.map(p => postHTML(p, profiles[p.authorUid])).join('');
+  } catch (e) { return ''; }
+}
+
+async function _searchDiscoverVideos(q) {
+  try {
+    const resp = await fetch('/api/youtube?action=reels&q=' + encodeURIComponent(q));
+    const data = await resp.json();
+    if (!data.configured || data.error || !data.items?.length) return '';
+    window._discoverSearchVideos = data.items.slice(0, 10);
+    const cards = window._discoverSearchVideos.map((v, i) => `
+      <div class="fy-reel-card" onclick="openReelsAt(window._discoverSearchVideos[${i}])">
+        <img class="fy-reel-thumb" src="${escapeHTML(v.thumb)}" alt="" loading="lazy">
+        <div class="fy-reel-play"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></div>
+        <div class="fy-reel-title">${escapeHTML(v.title || '')}</div>
+      </div>`).join('');
+    return `<div class="fy-reel-tray-scroll">${cards}</div>`;
+  } catch (e) { return ''; }
+}
+
+/* Private groups you're not a member of NEVER show here, search or not —
+   this is the actual fix for "don't show groups I'm not in." Public
+   groups show for anyone and can be joined right from the result. */
+async function _searchDiscoverGroups(q) {
+  try {
+    const snap = await window.XF.get('groups');
+    const groups = [];
+    if (snap.exists()) snap.forEach(c => groups.push({ id: c.key, ...c.val() }));
+    const mine = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
+    const lower = q.toLowerCase();
+    const matches = groups.filter(g =>
+      (g.name || '').toLowerCase().includes(lower) &&
+      (g.privacy !== 'private' || mine.has(g.id))
+    ).slice(0, 8);
+    if (!matches.length) return '';
+    return matches.map(g => (typeof _groupCardHTML === 'function') ? _groupCardHTML(g) : '').join('');
+  } catch (e) { return ''; }
 }
 
 /* ─── CONNECTION STATUS HELPERS ─── */

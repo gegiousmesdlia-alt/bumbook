@@ -61,7 +61,19 @@
 <body>
 <div id="appLoader">
   <div class="loader-brand">
-    <img class="loader-brand-logo" src="assets/logo.png" alt="Bum Book" width="120">
+    <div class="book-loader" aria-hidden="true">
+      <svg class="book-loader-svg" viewBox="0 0 140 100" width="120" height="86">
+        <!-- Spine (fixed, never moves) -->
+        <rect x="66" y="16" width="8" height="68" rx="2" fill="#1a5fd9"/>
+        <!-- Pages inside — revealed once the covers swing open -->
+        <rect class="book-loader-pages" x="26" y="20" width="88" height="60" rx="3" fill="#eef4ff"/>
+        <!-- Covers — hinged at the spine (x=70), scale out from 0 (shut) to 1 (open) -->
+        <rect class="book-loader-cover book-loader-cover-l" x="24" y="16" width="46" height="68" rx="4" fill="#2b7fff"/>
+        <rect class="book-loader-cover book-loader-cover-r" x="70" y="16" width="46" height="68" rx="4" fill="#2b7fff"/>
+        <!-- The "B", fades/scales in once the covers have opened -->
+        <text class="book-loader-letter" x="70" y="58" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="30" fill="#1a5fd9">B</text>
+      </svg>
+    </div>
     <div class="loader-brand-name">Bum Book</div>
     <div class="loader-brand-tagline">Connect. Share. Chat.</div>
     <div class="loader-dots" id="loaderDots"><span></span><span></span><span></span></div>
@@ -167,13 +179,13 @@
       <img class="brand-logo-img brand-logo-nav" src="assets/logo.png" alt="Bum Book">
     </div>
     <div class="nav-links">
-      <div class="nav-link" data-page="feed" onclick="showPage('feed')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home</span></div>
-      <div class="nav-link" data-page="discover" onclick="showPage('discover')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Discover</span></div>
-      <div class="nav-link" data-page="reels" onclick="showPage('reels')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg></span><span>Reels</span></div>
-      <div class="nav-link" data-page="groups" onclick="showPage('groups')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Groups</span></div>
+      <div class="nav-link" data-page="feed" onclick="showPage('feed')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span data-i18n="nav_home">Home</span></div>
+      <div class="nav-link" data-page="discover" onclick="showPage('discover')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span data-i18n="nav_discover">Discover</span></div>
+      <div class="nav-link" data-page="reels" onclick="showPage('reels')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg></span><span data-i18n="nav_reels">Reels</span></div>
+      <div class="nav-link" data-page="groups" onclick="showPage('groups')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="nav_groups">Groups</span></div>
       <div class="nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Notifications</span><span class="nav-badge" id="navNotifBadge" style="display:none">0</span></div>
       <div class="nav-link" data-page="messages" onclick="showPage('messages')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span>Messages</span><span class="nav-badge" id="navMsgBadge" style="display:none">0</span></div>
-      <div class="nav-link" data-page="profile" onclick="showPage('profile')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>Profile</span></div>
+      <div class="nav-link" data-page="profile" onclick="showPage('profile')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span data-i18n="nav_profile">Profile</span></div>
     </div>
     <button class="nav-post-btn" onclick="openPostModal()"><span>Post</span></button>
     <button class="nav-theme-btn nav-push-btn" id="navPushBtn" onclick="togglePushFromNav()" title="Push notifications" aria-label="Push notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="push-dot" id="pushToggleIcon"></span></button>
@@ -234,17 +246,11 @@
 <div class="page" id="page-discover">
       <div class="page-header"><h1>Discover</h1></div>
       <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
-        <input class="form-input" type="text" placeholder="Search members" oninput="searchUsers(this.value)" style="border-radius:9999px;background:var(--bg-3)">
-        <div id="searchResults"></div>
+        <input id="discoverSearchInput" class="form-input" type="text" placeholder="Search people, posts, hashtags, videos, groups" oninput="handleDiscoverSearch(this.value)" style="border-radius:9999px;background:var(--bg-3)">
       </div>
-      <div class="page-header" style="position:static;border-bottom:none;padding-bottom:0">
-        <div><div style="font-weight:700">People you might know</div><div class="page-header-sub">Verified and unverified members</div></div>
+      <div id="discoverResults">
+        <div class="empty-state"><div class="empty-state-icon">⌕</div><div class="empty-state-title">Search Discover</div><div class="empty-state-desc">Find people, posts, hashtags, videos, and groups</div></div>
       </div>
-      <div id="discoverPeople"></div>
-      <div class="page-header" style="position:static;border-bottom:none;padding-bottom:0;margin-top:8px">
-        <div><div style="font-weight:700">🦋 Discover on Bluesky</div><div class="page-header-sub">Real, independent accounts — not bumbook members</div></div>
-      </div>
-      <div id="discoverBsky"></div>
     </div>
 <div class="page" id="page-notifications">
       <div class="page-header"><h1>Notifications</h1></div>
@@ -291,13 +297,13 @@
 <div class="page" id="page-settings">
       <div class="page-header"><h1>Settings</h1></div>
       <div style="padding:16px">
-        <div class="sidebar-section-title" style="padding:0 0 10px">Appearance</div>
+        <div class="sidebar-section-title" style="padding:0 0 10px" data-i18n="settings_appearance">Appearance</div>
         <div id="themeModeGroup" style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
           <label class="settings-radio-row"><input type="radio" name="themeMode" value="auto" onchange="setThemeMode(this.value)"><span>Auto <span style="color:var(--text-dim);font-weight:400">— match device setting</span></span></label>
           <label class="settings-radio-row"><input type="radio" name="themeMode" value="light" onchange="setThemeMode(this.value)"><span>Light</span></label>
           <label class="settings-radio-row"><input type="radio" name="themeMode" value="dark" onchange="setThemeMode(this.value)"><span>Dark</span></label>
         </div>
-        <div class="sidebar-section-title" style="padding:0 0 10px">Notifications</div>
+        <div class="sidebar-section-title" style="padding:0 0 10px" data-i18n="settings_notifications">Notifications</div>
         <div class="privacy-toggle-row" style="margin:0">
           <span class="privacy-toggle-label">Push notifications on this device</span>
           <label class="toggle-switch">
@@ -305,8 +311,17 @@
             <div class="toggle-track"></div><div class="toggle-thumb"></div>
           </label>
         </div>
-        <div class="sidebar-section-title" style="padding:24px 0 10px">Connected accounts</div>
+        <div class="sidebar-section-title" style="padding:24px 0 10px" data-i18n="settings_connected_accounts">Connected accounts</div>
         <div id="bskyConnectSection"></div>
+        <div class="sidebar-section-title" style="padding:24px 0 10px" data-i18n="settings_language">Language</div>
+        <select id="settingsLangSelect" class="form-input" onchange="this.value==='auto'?clearLanguageOverride():setLanguage(this.value)">
+          <option value="auto" data-i18n="settings_language_auto">Auto-detect</option>
+          <option value="en">English</option>
+          <option value="de">Deutsch</option>
+          <option value="pt">Português</option>
+          <option value="es">Español</option>
+          <option value="fr">Français</option>
+        </select>
       </div>
     </div>
 <div class="page" id="page-channel">
@@ -393,12 +408,12 @@
 <nav class="mobile-nav" style="display:none">
 
   <div class="mobile-nav-links">
-    <div class="mobile-nav-link" data-page="feed" onclick="showPage('feed')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home</span></div>
-    <div class="mobile-nav-link" data-page="discover" onclick="showPage('discover')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span>Discover</span></div>
-    <div class="mobile-nav-link" data-page="reels" onclick="showPage('reels')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg></span><span>Reels</span></div>
-    <div class="mobile-nav-link" data-page="groups" onclick="showPage('groups')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Groups</span></div>
-    <div class="mobile-nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Notifs</span><span class="mobile-nav-badge" id="mobileNotifBadge" style="display:none">0</span></div>
-    <div class="mobile-nav-link" data-page="profile" onclick="showPage('profile')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>Profile</span></div>
+    <div class="mobile-nav-link" data-page="feed" onclick="showPage('feed')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span data-i18n="nav_home">Home</span></div>
+    <div class="mobile-nav-link" data-page="discover" onclick="showPage('discover')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span data-i18n="nav_discover">Discover</span></div>
+    <div class="mobile-nav-link" data-page="reels" onclick="showPage('reels')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg></span><span data-i18n="nav_reels">Reels</span></div>
+    <div class="mobile-nav-link" data-page="groups" onclick="showPage('groups')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="nav_groups">Groups</span></div>
+    <div class="mobile-nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span data-i18n="nav_notifs">Notifs</span><span class="mobile-nav-badge" id="mobileNotifBadge" style="display:none">0</span></div>
+    <div class="mobile-nav-link" data-page="profile" onclick="showPage('profile')"><span class="mnav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span data-i18n="nav_profile">Profile</span></div>
   </div>
 
 </nav>
@@ -474,6 +489,7 @@
 <script src="firebase.js"></script>
 <script src="cloudinary.js"></script>
 <script src="config.js"></script>
+<script src="i18n.js"></script>
 <script src="utils.js"></script>
 <script src="bluesky.js"></script>
 <script src="router.js"></script>

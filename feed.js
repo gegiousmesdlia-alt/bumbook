@@ -11,6 +11,12 @@ let _feedLoading = false;
 let _feedExhausted = false;
 let _feedFullyDone = false; // local posts exhausted AND Bluesky came up empty on the last try
 let _feedScrollHandler = null;
+let _seenPostIds = new Set();     // loaded once per feed session from users/{uid}.seenPostIds
+let _seenPostsPending = [];       // newly-seen ids waiting to be flushed to Firestore
+let _seenPostsFlushTimer = null;
+const SEEN_POSTS_MAX = 500;       // bounded rolling window — see the comment on _flushSeenPosts for why this isn't unlimited
+let _feedObserver = null;
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _flushSeenPosts(); });
 
 function _teardownFeed() {
   if (_feedUnsubscribe) { try { _feedUnsubscribe(); } catch (e) {} _feedUnsubscribe = null; }
@@ -20,7 +26,70 @@ function _teardownFeed() {
     window.removeEventListener('scroll', _feedScrollHandler);
     _feedScrollHandler = null;
   }
+  if (_feedObserver) { _feedObserver.disconnect(); _feedObserver = null; }
+  _flushSeenPosts(); // don't lose the last few seconds of "seen" progress when navigating away
   _feedOldestTs = null; _feedLoading = false; _feedExhausted = false; _feedFullyDone = false;
+}
+
+/* ── "Don't resurface posts I've already scrolled past" (like Facebook) ─
+ * Bounded rolling window rather than a truly infinite list, on purpose:
+ * a single Firestore document has a 1MB size limit, and with Bluesky
+ * supplying effectively unlimited content, an active user could
+ * accumulate thousands of seen IDs — capping at the most recent 500
+ * keeps this safely under that ceiling forever, at the cost of a post
+ * from very far back in your history being technically eligible to
+ * resurface again eventually. That's the same tradeoff real feeds make.
+ *
+ * WRITES ARE BATCHED, NOT PER-POST: given today's Firestore quota
+ * incident, marking every single post seen with its own write would be a
+ * real cost risk for an active scroller. Newly-seen ids collect in
+ * memory and flush as ONE write every 8 seconds (or on page/tab hide),
+ * covering however many posts were seen in that window. */
+async function _loadSeenPostIds() {
+  _seenPostIds = new Set();
+  if (!currentUser) return;
+  try {
+    const snap = await window.XF.get('users/' + currentUser.uid + '/seenPostIds');
+    if (snap.exists() && Array.isArray(snap.val())) _seenPostIds = new Set(snap.val());
+  } catch (e) { /* fine to start with an empty seen-set if this fails */ }
+}
+
+function _markPostsSeen(ids) {
+  let changed = false;
+  ids.forEach(id => { if (id && !_seenPostIds.has(id)) { _seenPostIds.add(id); _seenPostsPending.push(id); changed = true; } });
+  if (!changed) return;
+  if (_seenPostsFlushTimer) return;
+  _seenPostsFlushTimer = setTimeout(_flushSeenPosts, 8000);
+}
+
+async function _flushSeenPosts() {
+  if (_seenPostsFlushTimer) { clearTimeout(_seenPostsFlushTimer); _seenPostsFlushTimer = null; }
+  if (!currentUser || !_seenPostsPending.length) return;
+  _seenPostsPending = [];
+  // Re-derive the bounded array from the full in-memory set (which
+  // already has everything merged in) rather than trying to append —
+  // Firestore array fields don't have a "keep only the last N" primitive.
+  const bounded = [..._seenPostIds].slice(-SEEN_POSTS_MAX);
+  try { await window.XF.set('users/' + currentUser.uid + '/seenPostIds', bounded); } catch (e) { /* not critical if a flush occasionally drops — next flush will catch up */ }
+}
+
+/* Watches rendered post cards and marks them seen once they've actually
+   scrolled into view — not just "was in the page somewhere". */
+function _attachSeenObserver(container) {
+  if (!('IntersectionObserver' in window)) return;
+  if (_feedObserver) _feedObserver.disconnect();
+  _feedObserver = new IntersectionObserver(entries => {
+    const newlySeen = [];
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.dataset.id;
+        if (id) newlySeen.push(id);
+        _feedObserver.unobserve(entry.target); // no need to keep watching once it's counted
+      }
+    });
+    if (newlySeen.length) _markPostsSeen(newlySeen);
+  }, { threshold: 0.5 });
+  container.querySelectorAll('.post[data-id]').forEach(el => _feedObserver.observe(el));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +137,7 @@ async function renderFeed() {
   if (!container) return;
   _teardownFeed();
   container.innerHTML = '<div class="loading-center"><div class="spinner"></div></div>';
+  await _loadSeenPostIds();
   await _loadFeedPage(container, true);
   _attachFeedScrollListener(container);
   _feedUnsubscribe = window.XF.on('posts', async function (snap) {
@@ -101,6 +171,7 @@ async function renderFeed() {
       if (sentinel) container.insertBefore(wrapper.firstChild, sentinel);
       else container.prepend(wrapper.firstChild);
     }
+    _attachSeenObserver(container);
   });
 }
 
@@ -140,10 +211,15 @@ async function _loadFeedPage(container, isFirst) {
     const profiles = {};
     await Promise.allSettled(uids.map(async uid => { try { const s = await window.XF.get('users/' + uid); if (s.exists()) profiles[uid] = s.val(); } catch (e) {} }));
     // Local posts, each carrying its own real timestamp for the merge below.
-    const localItems = posts.map(p => ({
-      ts: p.createdAt || 0,
-      html: p.authorUid === CLAUDE_ENGINEER_UID ? claudeEngineerPostHTML(p) : postHTML(p, profiles[p.authorUid])
-    }));
+    // Already-seen ones (see _loadSeenPostIds) are dropped here so a
+    // reload doesn't just show the same posts you already scrolled past —
+    // same idea as Facebook not re-surfacing what you've already seen.
+    const localItems = posts
+      .filter(p => !_seenPostIds.has(p.id))
+      .map(p => ({
+        id: p.id, ts: p.createdAt || 0,
+        html: p.authorUid === CLAUDE_ENGINEER_UID ? claudeEngineerPostHTML(p) : postHTML(p, profiles[p.authorUid])
+      }));
 
     // Mixed-in real Bluesky posts (see bluesky.js) — a small batch per
     // page load, merged into the timeline by actual post time rather than
@@ -157,7 +233,9 @@ async function _loadFeedPage(container, isFirst) {
     if (typeof fetchBlueskyBatch === 'function') {
       try {
         const bskyPosts = await fetchBlueskyBatch(isFirst ? 6 : 3);
-        blueskyItems = bskyPosts.map(p => ({ ts: p.createdAt || Date.now(), html: blueskyPostHTML(p) }));
+        blueskyItems = bskyPosts
+          .filter(p => !_seenPostIds.has(p.id))
+          .map(p => ({ id: p.id, ts: p.createdAt || Date.now(), html: blueskyPostHTML(p) }));
         if (!bskyPosts.length) blueskyFailed = true;
       } catch (e) { blueskyFailed = true; /* Bluesky being unreachable should never break the real feed */ }
     } else {
@@ -197,6 +275,7 @@ async function _loadFeedPage(container, isFirst) {
     if (isFirst) { container.innerHTML = ''; container.appendChild(sentinel); }
     const wrapper = document.createElement('div'); wrapper.innerHTML = html;
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
+    _attachSeenObserver(container);
     if (_feedFullyDone) {
       sentinel.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">You\'re all caught up ✓</div>';
     } else {
@@ -311,7 +390,7 @@ async function submitPost() {
     let imageURL = '';
     if (imageInput?.files[0]) { showToast('Uploading image…'); imageURL = (await window.XCloud.upload(imageInput.files[0], 'x_posts')).url; }
     const ts = _postDateMode === 'backdate' ? resolvePostTimestamp() : Date.now();
-    const postData = { authorUid: currentUser.uid, text, imageURL, type: isEvent ? 'event' : 'post', createdAt: ts, commentCount: 0 };
+    const postData = { authorUid: currentUser.uid, text, imageURL, type: isEvent ? 'event' : 'post', createdAt: ts, commentCount: 0, hashtags: extractHashtags(text) };
     if (!imageURL) {
       const firstUrl = detectFirstUrl(text);
       if (firstUrl) {

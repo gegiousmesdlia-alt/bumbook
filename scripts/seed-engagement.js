@@ -60,6 +60,7 @@ const NEW_SEED_TO_SEED_REQUESTS = 150; // per round
 const DAILY_WRITE_SOFT_CAP = 18000;    // stays a bit under Firestore's real 20K/day so this can always stop itself cleanly
 const POSTS_PAGE_SIZE = 25;            // posts read+processed per checkpoint in phase 1
 const REQUESTS_PAGE_SIZE = 50;         // connection requests processed per checkpoint in phase 2
+const SEED_USER_CACHE_HOURS = 24;      // see loadSeedUsers() below — this is the fix for the actual bug that caused a 246K-read day
 
 /* ── Load service account (same pattern as seed-test-users.js) ────────── */
 let keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -122,13 +123,39 @@ async function loadState() {
 }
 async function saveState(state) { await STATE_REF.set(state); }
 
+/* THE ACTUAL BUG THAT CAUSED A 246K-READ DAY: this used to run
+ * `db.collection('users').where('seedTest','==',true).get()` — a FULL,
+ * uncached read of every seed user's entire document — at the top of
+ * EVERY invocation of this script, no caching at all. With thousands of
+ * seed users, running this command more than once in a session (retrying
+ * after a typo, Ctrl+C and rerunning, etc.) repeats that full cost each
+ * time. Only `.uid` is ever used anywhere in this file, so this now
+ * caches just the uid list in Firestore for 24 hours — re-running the
+ * script all day only pays the real Firestore cost once. */
+const SEED_USER_CACHE_REF = db.collection('seedEngagementState').doc('seedUserCache');
+async function loadSeedUsers() {
+  try {
+    const snap = await SEED_USER_CACHE_REF.get();
+    if (snap.exists) {
+      const data = snap.data();
+      if (data.uids && (Date.now() - (data.refreshedAt || 0)) < SEED_USER_CACHE_HOURS * 3600000) {
+        return data.uids.map(uid => ({ uid }));
+      }
+    }
+  } catch (e) { /* fall through to a real query below */ }
+
+  const usersSnap = await db.collection('users').where('seedTest', '==', true).select().get();
+  const uids = usersSnap.docs.map(d => d.id);
+  try { await SEED_USER_CACHE_REF.set({ uids, refreshedAt: Date.now() }); } catch (e) { /* cache write failing shouldn't stop this run from proceeding with fresh data */ }
+  return uids.map(uid => ({ uid }));
+}
+
 async function main() {
   console.log('\nEngagement seeding — likes, comments, connection follow-backs (resumable)\n');
   const ans = await confirm('Proceed? (yes/no): ');
   if (ans !== 'yes' && ans !== 'y') { console.log('Cancelled.'); return; }
 
-  const usersSnap = await db.collection('users').where('seedTest', '==', true).get();
-  const seedUsers = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  const seedUsers = await loadSeedUsers();
   if (!seedUsers.length) {
     console.error('\nNo seedTest users found — run scripts/seed-test-users.js first.\n');
     return;

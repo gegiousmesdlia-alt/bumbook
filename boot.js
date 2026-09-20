@@ -3,6 +3,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
   applyStoredTheme();
+  if (typeof detectAndSetLanguage === 'function') detectAndSetLanguage(); // fire-and-forget — never blocks boot on a slow/failed IP lookup
   if (typeof initLandingParticles === 'function') initLandingParticles();
   updateNavActive();
 

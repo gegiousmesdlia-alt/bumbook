@@ -28,6 +28,7 @@ const REEL_TOPICS = [
 ];
 
 let _reels = [];
+let _channelShownCounts = {}; // channelId -> how many times shown this session — caps one channel from dominating (see the filter in _loadReels)
 let _reelsNextPage = null;
 let _reelsTopic = '';       // explicit search override, from the search box
 let _reelsLoading = false;
@@ -123,9 +124,21 @@ async function _loadReels(isFirst = false) {
     }
 
     // De-dupe — paging, topic rotation, and a pending jump-to-video can
-    // all repeat videos.
+    // all repeat videos. Also cap how many videos from any ONE channel can
+    // show in a session — without this, a strong personalization match
+    // (see _pickReelTopic's 65% "repeat what you liked" branch) can let a
+    // single prolific repost channel dominate every reel you see.
+    const MAX_PER_CHANNEL_PER_SESSION = 4;
     const seen = new Set(_reels.map(r => r.videoId));
-    const incoming = data.items.map(v => ({ ...v, topic: data.topic || topic })).filter(v => !seen.has(v.videoId));
+    const incoming = data.items
+      .map(v => ({ ...v, topic: data.topic || topic }))
+      .filter(v => !seen.has(v.videoId))
+      .filter(v => {
+        const count = _channelShownCounts[v.channelId] || 0;
+        if (count >= MAX_PER_CHANNEL_PER_SESSION) return false;
+        _channelShownCounts[v.channelId] = count + 1;
+        return true;
+      });
     _reels = isFirst ? incoming : _reels.concat(incoming);
     _reelsNextPage = data.nextPageToken || null;
 
@@ -361,7 +374,7 @@ function toggleReelsSearch() {
 }
 
 function refreshReels() {
-  _reels = []; _reelsNextPage = null;
+  _reels = []; _reelsNextPage = null; _channelShownCounts = {};
   const c = $('reelsContainer'); if (c) c.innerHTML = '<div class="reels-msg"><div class="spinner"></div></div>';
   _loadReels(true);
 }

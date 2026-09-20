@@ -211,6 +211,8 @@ function onPageActivated(page, opts = {}) {
     if (page === 'settings') {
       syncThemeSettingsUI();
       if (typeof renderBskyConnectSection === 'function') renderBskyConnectSection();
+      const langSelect = $('settingsLangSelect');
+      if (langSelect) { try { langSelect.value = localStorage.getItem('bumbook_lang') || 'auto'; } catch (e) {} }
       const bskyConnected = new URLSearchParams(window.location.search).get('bskyConnected');
       if (bskyConnected === '1') showToast('Bluesky connected ✓');
       else if (bskyConnected === '0') showToast('Bluesky connection failed — try again');

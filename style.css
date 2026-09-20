@@ -92,6 +92,42 @@ body.theme-light .spinner { border-color: rgba(0, 0, 0, 0.12); border-top-color:
   animation: loaderFadeIn 0.6s ease;
 }
 @keyframes loaderFadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+/* Book-opening loader animation — covers swing open from the spine (a
+   flat scaleX trick rather than true 3D, so it stays crisp and cheap on
+   low-end phones), pages fade in, then the "B" settles in on top. Runs
+   once and holds on the open state — doesn't loop, so it doesn't feel
+   busy if the real load takes a few extra seconds. */
+.book-loader { margin: 0 auto 4px; width: 120px; height: 86px; }
+.book-loader-svg { display: block; }
+.book-loader-cover {
+  transform-box: fill-box;
+  animation: bookCoverOpen 900ms cubic-bezier(.34,1.56,.64,1) forwards;
+}
+.book-loader-cover-l { transform-origin: 100% 50%; }
+.book-loader-cover-r { transform-origin: 0% 50%; }
+.book-loader-pages {
+  opacity: 0;
+  animation: bookFadeIn 500ms ease-out 550ms forwards;
+}
+.book-loader-letter {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: bookLetterIn 450ms cubic-bezier(.34,1.56,.64,1) 700ms forwards;
+}
+@keyframes bookCoverOpen {
+  0%   { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+@keyframes bookFadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes bookLetterIn {
+  0%   { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 .loader-brand-logo {
   height: auto;
   filter: drop-shadow(0 0 24px rgba(29,155,240,0.35));

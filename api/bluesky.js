@@ -49,8 +49,30 @@ module.exports = async (req, res) => {
   if (action === 'discover') return handleDiscover(req, res);
   if (action === 'profile') return handleProfile(req, res);
   if (action === 'post') return handlePost(req, res);
-  res.status(400).json({ error: 'action must be feed, discover, profile, or post' });
+  if (action === 'searchActors') return handleSearchActors(req, res);
+  res.status(400).json({ error: 'action must be feed, discover, profile, post, or searchActors' });
 };
+
+/* ── searchActors: find real Bluesky accounts by name/handle, for the
+   Discover page's unified search ─────────────────────────────────────── */
+async function handleSearchActors(req, res) {
+  res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=86400');
+  const q = (req.query.q || '').trim();
+  if (!q) { res.status(200).json({ accounts: [], configured: true }); return; }
+  try {
+    const params = new URLSearchParams({ q, limit: '10' });
+    const data = await getJSON(`${APPVIEW}/xrpc/app.bsky.actor.searchActors?${params}`);
+    if (data.error) { res.status(200).json({ accounts: [], configured: true, error: 'api', message: data.message || data.error }); return; }
+    const accounts = (data.actors || []).map(a => ({
+      did: a.did, handle: a.handle || 'unknown', displayName: a.displayName || a.handle || 'Unknown',
+      avatar: a.avatar || '', description: a.description || '',
+      followersCount: typeof a.followersCount === 'number' ? a.followersCount : null
+    }));
+    res.status(200).json({ accounts, configured: true });
+  } catch (err) {
+    res.status(200).json({ accounts: [], configured: true, error: 'fetch', message: String(err && err.message || err) });
+  }
+}
 
 /* ── feed: posts mixed into the main timeline, bucketed by niche ──────── */
 async function handleFeed(req, res) {

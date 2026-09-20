@@ -88,15 +88,39 @@ module.exports = async (req, res) => {
    means only the (at most) daily refresh pays that cost. */
 async function _getSeedUidPool() {
   const ref = db.collection('botState').doc('seedUidPool');
-  const snap = await ref.get();
-  const data = snap.exists ? snap.data() : null;
+  let data;
+  try {
+    const snap = await ref.get();
+    data = snap.exists ? snap.data() : null;
+  } catch (e) { return []; } // can't even read the cache — bail cheap rather than also attempting the expensive query below
+
   const stale = !data || (Date.now() - (data.refreshedAt || 0)) > SEED_POOL_REFRESH_HOURS * 3600000;
   if (!stale) return data.uids || [];
 
-  const usersSnap = await db.collection('users').where('seedTest', '==', true).select().get();
-  const uids = usersSnap.docs.map(d => d.id);
-  await ref.set({ uids, refreshedAt: Date.now() });
-  return uids;
+  // BUG FIX: this used to attempt the expensive full-collection query and
+  // only mark the cache "refreshed" AFTER it succeeded — so if that query
+  // OR the final cache write ever failed (large seed-user list hitting
+  // Firestore's 1MB document limit, or quota already tight), the cache
+  // never actually updated, and EVERY 5-minute tick would silently retry
+  // the full expensive query again — 288x/day instead of once. That's
+  // almost certainly what caused a 246K-read day from a job that should
+  // cost a few thousand at most. Writing a short-backoff marker FIRST
+  // means a failure here retries in ~1 hour, not in 5 minutes.
+  try {
+    await ref.set({ uids: (data && data.uids) || [], refreshedAt: Date.now() - (SEED_POOL_REFRESH_HOURS - 1) * 3600000 }, { merge: true });
+  } catch (e) { return (data && data.uids) || []; }
+
+  try {
+    const usersSnap = await db.collection('users').where('seedTest', '==', true).select().get();
+    const uids = usersSnap.docs.map(d => d.id);
+    await ref.set({ uids, refreshedAt: Date.now() });
+    return uids;
+  } catch (e) {
+    // Expensive query or the final write failed — the backoff marker
+    // above already caps retries to ~hourly, so just fall back to
+    // whatever (possibly stale, possibly empty) list we had.
+    return (data && data.uids) || [];
+  }
 }
 
 /* ── Scan for new real posts, schedule staggered likes + connects ────── */
