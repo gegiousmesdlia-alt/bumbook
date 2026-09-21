@@ -109,6 +109,34 @@ function openBskyPost(uri, e) {
   showPage('bsky-post', { bskyUri: uri });
 }
 
+/* Renders whatever's attached to a post — a photo, a grid of photos, or a
+   link-preview card — using the embed data api/bluesky.js now extracts.
+   Images link out to Bluesky's own image at full size on click (stopping
+   propagation so it doesn't also trigger opening the post). */
+function _blueskyEmbedHTML(embed) {
+  if (!embed) return '';
+  if (embed.type === 'images' && embed.images?.length) {
+    const cols = embed.images.length === 1 ? '1fr' : '1fr 1fr';
+    const imgs = embed.images.slice(0, 4).map(img => `
+      <img src="${escapeHTML(img.thumb)}" alt="${escapeHTML(img.alt)}" loading="lazy"
+        style="width:100%;height:100%;object-fit:cover;border-radius:8px;cursor:pointer"
+        onclick="event.stopPropagation();window.open('${escapeAttrJS(img.fullsize || img.thumb)}','_blank','noopener')">`).join('');
+    return `<div style="display:grid;grid-template-columns:${cols};gap:4px;margin:8px 0;max-height:280px">${imgs}</div>`;
+  }
+  if (embed.type === 'external' && embed.external?.uri) {
+    const ext = embed.external;
+    return `<a href="${escapeAttrJS(ext.uri)}" target="_blank" rel="noopener noreferrer nofollow" onclick="event.stopPropagation()"
+        style="display:block;margin:8px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;text-decoration:none;color:inherit">
+      ${ext.thumb ? `<img src="${escapeHTML(ext.thumb)}" alt="" loading="lazy" style="width:100%;max-height:180px;object-fit:cover">` : ''}
+      <div style="padding:8px 10px">
+        <div style="font-weight:600;font-size:0.85rem;line-height:1.3">${escapeHTML(ext.title || ext.uri)}</div>
+        ${ext.description ? `<div style="font-size:0.78rem;color:var(--text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escapeHTML(ext.description)}</div>` : ''}
+      </div>
+    </a>`;
+  }
+  return '';
+}
+
 function blueskyPostHTML(post) {
   const a = post.author || {};
   const followers = typeof a.followersCount === 'number' ? `<span class="post-time">· ${formatCount(a.followersCount)} followers</span>` : '';
@@ -124,6 +152,7 @@ function blueskyPostHTML(post) {
         <span class="bluesky-badge" title="Real post from Bluesky" style="margin-left:auto;font-size:0.7rem;padding:2px 8px;border-radius:10px;background:rgba(0,133,255,0.12);color:#0085ff;font-weight:600">🦋 ${escapeHTML(nicheLabel)}</span>
       </div>
       <div class="post-text">${post.textHTML || ''}</div>
+      ${_blueskyEmbedHTML(post.embed)}
       <div class="post-actions">
         <div class="post-action comment"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${post.replyCount > 0 ? ' ' + formatCount(post.replyCount) : ''}</div>
         <div class="post-action like"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>${post.likeCount > 0 ? ' ' + formatCount(post.likeCount) : ''}</div>
@@ -148,6 +177,7 @@ function blueskyPostRowHTML(post, opts) {
         <span class="post-time">· ${timeAgo(post.createdAt)}</span>
       </div>
       <div class="post-text">${post.textHTML || ''}</div>
+      ${_blueskyEmbedHTML(post.embed)}
       <div class="post-actions" style="pointer-events:none">
         <div class="post-action comment"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${post.replyCount > 0 ? ' ' + formatCount(post.replyCount) : ''}</div>
         <div class="post-action like"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>${post.likeCount > 0 ? ' ' + formatCount(post.likeCount) : ''}</div>

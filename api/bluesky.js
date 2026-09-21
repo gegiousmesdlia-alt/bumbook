@@ -106,6 +106,7 @@ async function handleFeed(req, res) {
         id: uri,
         niche: classifyNiche(p.record.text) || requestedNiche,
         textHTML: renderFacetedHTML(p.record.text, p.record.facets),
+        embed: extractEmbed(p),
         createdAt: new Date(p.record.createdAt || p.indexedAt || Date.now()).getTime(),
         likeCount: p.likeCount || 0, repostCount: p.repostCount || 0, replyCount: p.replyCount || 0,
         author: {
@@ -202,6 +203,7 @@ async function handleProfile(req, res) {
       const rkey = uri.split('/').pop();
       return {
         id: uri, textHTML: renderFacetedHTML(p.record.text, p.record.facets),
+        embed: extractEmbed(p),
         createdAt: new Date(p.record.createdAt || p.indexedAt || Date.now()).getTime(),
         likeCount: p.likeCount || 0, repostCount: p.repostCount || 0, replyCount: p.replyCount || 0,
         author: { did: profile.did, handle: profile.handle, displayName: profile.displayName, avatar: profile.avatar, followersCount: profile.followersCount },
@@ -239,12 +241,35 @@ async function handlePost(req, res) {
   }
 }
 
+/* ── Shared: pull out the useful bits of a post's embed (image/link
+   card) — this was missing entirely before, which is why every Bluesky
+   post anywhere in the app showed as text-only even when the real post
+   had a photo or link preview attached. Only handles the two common
+   cases (images, external link cards); a quote-post-of-a-quote-post
+   (recordWithMedia) falls through to null rather than getting overly
+   elaborate for a rare case. */
+function extractEmbed(p) {
+  const embed = p.embed;
+  if (!embed) return null;
+  if (embed.$type === 'app.bsky.embed.images#view' && embed.images?.length) {
+    return { type: 'images', images: embed.images.map(img => ({ thumb: img.thumb, fullsize: img.fullsize, alt: img.alt || '' })) };
+  }
+  if (embed.$type === 'app.bsky.embed.external#view' && embed.external) {
+    return { type: 'external', external: { uri: embed.external.uri, title: embed.external.title || '', description: embed.external.description || '', thumb: embed.external.thumb || '' } };
+  }
+  if (embed.$type === 'app.bsky.embed.recordWithMedia#view' && embed.media) {
+    return extractEmbed({ embed: embed.media });
+  }
+  return null;
+}
+
 function normalizePost(p) {
   const uri = p.uri || '';
   const rkey = uri.split('/').pop();
   return {
     id: uri,
     textHTML: renderFacetedHTML(p.record?.text || '', p.record?.facets),
+    embed: extractEmbed(p),
     createdAt: new Date(p.record?.createdAt || p.indexedAt || Date.now()).getTime(),
     likeCount: p.likeCount || 0, repostCount: p.repostCount || 0, replyCount: p.replyCount || 0,
     author: { did: p.author?.did || '', handle: p.author?.handle || 'unknown', displayName: p.author?.displayName || p.author?.handle || 'Unknown', avatar: p.author?.avatar || '' },
