@@ -45,7 +45,14 @@ const TRANSLATIONS = {
     auth_forgot_password: 'Forgot password?', auth_back_to_signin: '← Back to sign in',
     form_email: 'Email', form_password: 'Password', form_fullname: 'Full Name', form_username: 'Username',
     divider_or: 'or',
-    discover_search_title: 'Search Discover', discover_search_desc: 'Find people, posts, hashtags, videos, and groups'
+    discover_search_title: 'Search Discover', discover_search_desc: 'Find people, posts, hashtags, videos, and groups',
+    btn_accept: 'Accept', btn_connect: 'Connect', btn_connected: 'Connected', btn_decline: 'Decline',
+    btn_message: 'Message', btn_pending: 'Pending', btn_request_sent: 'Request sent', btn_share: 'Share',
+    groups_discover_hdr: 'Discover', groups_empty_desc: 'Be the first to start one', groups_empty_title: 'No groups yet',
+    groups_mine: 'My Groups', groups_no_other: 'No other groups to show',
+    lbl_followers: 'Followers', lbl_following: 'Following', lbl_posts: 'Posts', lbl_private: 'Private', lbl_public: 'Public',
+    messages_empty_desc: 'Connect with members to start chatting', messages_empty_title: 'No messages yet',
+    notifs_empty: 'No notifications yet'
   },
   de: {
     nav_home: 'Start', nav_discover: 'Entdecken', nav_reels: 'Reels', nav_groups: 'Gruppen',
@@ -72,7 +79,14 @@ const TRANSLATIONS = {
     auth_forgot_password: 'Passwort vergessen?', auth_back_to_signin: '← Zurück zur Anmeldung',
     form_email: 'E-Mail', form_password: 'Passwort', form_fullname: 'Vollständiger Name', form_username: 'Benutzername',
     divider_or: 'oder',
-    discover_search_title: 'Discover durchsuchen', discover_search_desc: 'Finde Personen, Beiträge, Hashtags, Videos und Gruppen'
+    discover_search_title: 'Discover durchsuchen', discover_search_desc: 'Finde Personen, Beiträge, Hashtags, Videos und Gruppen',
+    btn_accept: 'Annehmen', btn_connect: 'Verbinden', btn_connected: 'Verbunden', btn_decline: 'Ablehnen',
+    btn_message: 'Nachricht', btn_pending: 'Ausstehend', btn_request_sent: 'Anfrage gesendet', btn_share: 'Teilen',
+    groups_discover_hdr: 'Entdecken', groups_empty_desc: 'Sei die erste Person, die eine Gruppe erstellt', groups_empty_title: 'Noch keine Gruppen',
+    groups_mine: 'Meine Gruppen', groups_no_other: 'Keine weiteren Gruppen',
+    lbl_followers: 'Follower', lbl_following: 'Folge ich', lbl_posts: 'Beiträge', lbl_private: 'Privat', lbl_public: 'Öffentlich',
+    messages_empty_desc: 'Verbinde dich mit Mitgliedern, um zu chatten', messages_empty_title: 'Noch keine Nachrichten',
+    notifs_empty: 'Noch keine Mitteilungen'
   },
   pt: {
     nav_home: 'Início', nav_discover: 'Descobrir', nav_reels: 'Reels', nav_groups: 'Grupos',
@@ -99,7 +113,14 @@ const TRANSLATIONS = {
     auth_forgot_password: 'Esqueceu-se da palavra-passe?', auth_back_to_signin: '← Voltar ao início de sessão',
     form_email: 'Email', form_password: 'Palavra-passe', form_fullname: 'Nome completo', form_username: 'Nome de utilizador',
     divider_or: 'ou',
-    discover_search_title: 'Pesquisar no Discover', discover_search_desc: 'Encontre pessoas, publicações, hashtags, vídeos e grupos'
+    discover_search_title: 'Pesquisar no Discover', discover_search_desc: 'Encontre pessoas, publicações, hashtags, vídeos e grupos',
+    btn_accept: 'Aceitar', btn_connect: 'Conectar', btn_connected: 'Conectado', btn_decline: 'Recusar',
+    btn_message: 'Mensagem', btn_pending: 'Pendente', btn_request_sent: 'Pedido enviado', btn_share: 'Partilhar',
+    groups_discover_hdr: 'Descobrir', groups_empty_desc: 'Seja o primeiro a criar um', groups_empty_title: 'Ainda sem grupos',
+    groups_mine: 'Meus Grupos', groups_no_other: 'Sem mais grupos para mostrar',
+    lbl_followers: 'Seguidores', lbl_following: 'A seguir', lbl_posts: 'Publicações', lbl_private: 'Privado', lbl_public: 'Público',
+    messages_empty_desc: 'Conecte-se com membros para começar a conversar', messages_empty_title: 'Ainda sem mensagens',
+    notifs_empty: 'Ainda sem notificações'
   },
   es: {
     nav_home: 'Inicio', nav_discover: 'Descubrir', nav_reels: 'Reels', nav_groups: 'Grupos',
@@ -126,7 +147,14 @@ const TRANSLATIONS = {
     auth_forgot_password: '¿Olvidaste tu contraseña?', auth_back_to_signin: '← Volver a iniciar sesión',
     form_email: 'Email', form_password: 'Contraseña', form_fullname: 'Nombre completo', form_username: 'Nombre de usuario',
     divider_or: 'o',
-    discover_search_title: 'Buscar en Discover', discover_search_desc: 'Encuentra personas, publicaciones, hashtags, videos y grupos'
+    discover_search_title: 'Buscar en Discover', discover_search_desc: 'Encuentra personas, publicaciones, hashtags, videos y grupos',
+    btn_accept: 'Aceptar', btn_connect: 'Conectar', btn_connected: 'Conectado', btn_decline: 'Rechazar',
+    btn_message: 'Mensaje', btn_pending: 'Pendiente', btn_request_sent: 'Solicitud enviada', btn_share: 'Compartir',
+    groups_discover_hdr: 'Descubrir', groups_empty_desc: 'Sé el primero en crear uno', groups_empty_title: 'Aún no hay grupos',
+    groups_mine: 'Mis Grupos', groups_no_other: 'No hay más grupos para mostrar',
+    lbl_followers: 'Seguidores', lbl_following: 'Siguiendo', lbl_posts: 'Publicaciones', lbl_private: 'Privado', lbl_public: 'Público',
+    messages_empty_desc: 'Conéctate con miembros para empezar a chatear', messages_empty_title: 'Aún no hay mensajes',
+    notifs_empty: 'Aún no hay notificaciones'
   },
   fr: {
     nav_home: 'Accueil', nav_discover: 'Découvrir', nav_reels: 'Reels', nav_groups: 'Groupes',
@@ -153,7 +181,14 @@ const TRANSLATIONS = {
     auth_forgot_password: 'Mot de passe oublié ?', auth_back_to_signin: '← Retour à la connexion',
     form_email: 'Email', form_password: 'Mot de passe', form_fullname: 'Nom complet', form_username: "Nom d'utilisateur",
     divider_or: 'ou',
-    discover_search_title: 'Rechercher dans Discover', discover_search_desc: 'Trouvez des personnes, publications, hashtags, vidéos et groupes'
+    discover_search_title: 'Rechercher dans Discover', discover_search_desc: 'Trouvez des personnes, publications, hashtags, vidéos et groupes',
+    btn_accept: 'Accepter', btn_connect: 'Se connecter', btn_connected: 'Connecté', btn_decline: 'Refuser',
+    btn_message: 'Message', btn_pending: 'En attente', btn_request_sent: 'Demande envoyée', btn_share: 'Partager',
+    groups_discover_hdr: 'Découvrir', groups_empty_desc: 'Soyez le premier à en créer un', groups_empty_title: 'Aucun groupe pour le moment',
+    groups_mine: 'Mes Groupes', groups_no_other: 'Aucun autre groupe à afficher',
+    lbl_followers: 'Abonnés', lbl_following: 'Abonnements', lbl_posts: 'Publications', lbl_private: 'Privé', lbl_public: 'Public',
+    messages_empty_desc: 'Connectez-vous avec des membres pour discuter', messages_empty_title: 'Aucun message pour le moment',
+    notifs_empty: 'Aucune notification pour le moment'
   }
 };
 

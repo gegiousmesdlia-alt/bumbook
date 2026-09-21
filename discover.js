@@ -229,15 +229,15 @@ function _getIncomingReqId(uid, allReqs) {
 /* ─── CONNECT BUTTON — shows Accept/Decline if incoming ─── */
 function connectBtnHTML(uid, status, incomingReqId) {
   if (!currentUser || uid === currentUser.uid) return '';
-  if (status === 'connected') return `<button class="btn btn-following btn-sm" onclick="event.stopPropagation();disconnect('${uid}')">Connected ✓</button>`;
-  if (status === 'pending') return `<button class="btn btn-outline btn-sm" disabled style="opacity:0.6">Pending…</button>`;
+  if (status === 'connected') return `<button class="btn btn-following btn-sm" onclick="event.stopPropagation();disconnect('${uid}')">${t('btn_connected')} ✓</button>`;
+  if (status === 'pending') return `<button class="btn btn-outline btn-sm" disabled style="opacity:0.6">${t('btn_pending')}…</button>`;
   if (status === 'incoming' && incomingReqId) {
     return `<div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();acceptConnectionFromDiscover('${incomingReqId}','${uid}',this)">Accept</button>
-      <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();declineConnectionFromDiscover('${incomingReqId}',this)">Decline</button>
+      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();acceptConnectionFromDiscover('${incomingReqId}','${uid}',this)">${t('btn_accept')}</button>
+      <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();declineConnectionFromDiscover('${incomingReqId}',this)">${t('btn_decline')}</button>
     </div>`;
   }
-  return `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendConnectionRequest('${uid}')">Connect</button>`;
+  return `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();sendConnectionRequest('${uid}')">${t('btn_connect')}</button>`;
 }
 
 /* ─── SEND CONNECTION REQUEST ─── */

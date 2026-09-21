@@ -99,7 +99,7 @@ function _rebuildNotifUI() {
   if (!container || !currentUser) return;
 
   if (_notifCache.size === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + ICON_BELL + '</div><div class="empty-state-title">No notifications yet</div></div>';
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + ICON_BELL + '</div><div class="empty-state-title">' + t('notifs_empty') + '</div></div>';
     return;
   }
 
@@ -333,8 +333,8 @@ function _rebuildConvUI() {
   if (_convCache.size === 0) {
     container.innerHTML = `<div class="empty-state" style="padding:40px 16px">
       <div class="empty-state-icon">${ICON_CHAT}</div>
-      <div class="empty-state-title">No messages yet</div>
-      <div class="empty-state-desc">Connect with members to start chatting</div>
+      <div class="empty-state-title">${t('messages_empty_title')}</div>
+      <div class="empty-state-desc">${t('messages_empty_desc')}</div>
     </div>`;
     return;
   }

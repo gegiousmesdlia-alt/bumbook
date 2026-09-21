@@ -38,9 +38,9 @@ async function renderOwnProfile() {
       ${currentProfile.bio ? `<div class="profile-bio">${escapeHTML(currentProfile.bio)}</div>` : '<div class="profile-bio text-dim">No bio yet</div>'}
       <div id="ownBioLinkPreview"></div>
       <div class="profile-stats">
-        <div class="profile-stat"><strong>${formatCount(currentProfile.followersCount || 0)}</strong> <span>Followers</span></div>
-        <div class="profile-stat"><strong>${formatCount(currentProfile.followingCount || 0)}</strong> <span>Following</span></div>
-        <div class="profile-stat"><strong>${formatCount(currentProfile.postsCount || 0)}</strong> <span>Posts</span></div>
+        <div class="profile-stat"><strong>${formatCount(currentProfile.followersCount || 0)}</strong> <span>${t('lbl_followers')}</span></div>
+        <div class="profile-stat"><strong>${formatCount(currentProfile.followingCount || 0)}</strong> <span>${t('lbl_following')}</span></div>
+        <div class="profile-stat"><strong>${formatCount(currentProfile.postsCount || 0)}</strong> <span>${t('lbl_posts')}</span></div>
       </div>
       <div class="privacy-toggle-row">
         <span class="privacy-toggle-label">⊛ Show my followers publicly</span>
@@ -182,19 +182,19 @@ async function renderUserProfile(uid) {
           <div class="profile-avatar-wrap">${avatarHTML(profile, 'xl')}</div>
           <div style="display:flex;gap:8px;padding-top:12px;flex-wrap:wrap">
             ${currentUser && uid !== currentUser.uid ? connStatus === 'incoming'
-              ? `<button class="btn btn-primary btn-sm" onclick="acceptConnectionFromProfile('${incomingReqId}','${uid}',this)">✓ Accept</button><button class="btn btn-outline btn-sm" onclick="declineConnection('${incomingReqId}').then(()=>renderUserProfile('${uid}'))">Decline</button>`
+              ? `<button class="btn btn-primary btn-sm" onclick="acceptConnectionFromProfile('${incomingReqId}','${uid}',this)">✓ ${t('btn_accept')}</button><button class="btn btn-outline btn-sm" onclick="declineConnection('${incomingReqId}').then(()=>renderUserProfile('${uid}'))">${t('btn_decline')}</button>`
               : connectBtnHTML(uid, connStatus) : ''}
-            ${!currentUser ? `<button class="btn btn-primary btn-sm" onclick="requireVerified('connect with members')">Connect</button>` : ''}
+            ${!currentUser ? `<button class="btn btn-primary btn-sm" onclick="requireVerified('connect with members')">${t('btn_connect')}</button>` : ''}
             ${connStatus === 'connected'
-              ? `<button class="btn btn-outline btn-sm" onclick="openDMWith('${uid}')">Message</button>`
+              ? `<button class="btn btn-outline btn-sm" onclick="openDMWith('${uid}')">${t('btn_message')}</button>`
               : currentUser && uid !== currentUser.uid
                 ? hasSentMsgReq
-                  ? `<button class="btn btn-outline btn-sm" disabled style="opacity:0.5">Request sent</button>`
-                  : `<button class="btn btn-outline btn-sm" onclick="sendMessageRequest('${uid}','${escapeHTML(profile.displayName||'Member')}')">✉ Message</button>`
+                  ? `<button class="btn btn-outline btn-sm" disabled style="opacity:0.5">${t('btn_request_sent')}</button>`
+                  : `<button class="btn btn-outline btn-sm" onclick="sendMessageRequest('${uid}','${escapeHTML(profile.displayName||'Member')}')">✉ ${t('btn_message')}</button>`
                 : ''}
             <button class="btn btn-outline btn-sm" onclick="shareUserProfile('${uid}','${escapeHTML(profile.displayName || 'Member')}','${escapeHTML(profile.handle || uid)}')" title="Share profile">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-              Share
+              ${t('btn_share')}
             </button>
             ${currentUser && uid !== currentUser.uid ? `<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="blockUser('${uid}','${escapeHTML(profile.displayName || 'Member')}')">🚫 Block</button>` : ''}
           </div>
@@ -204,9 +204,9 @@ async function renderUserProfile(uid) {
         ${profile.bio ? `<div class="profile-bio">${escapeHTML(profile.bio)}</div>` : ''}
         <div id="userBioLinkPreview"></div>
         <div class="profile-stats">
-          <div class="profile-stat"><strong>${followersHidden ? '⊘' : formatCount(profile.followersCount || 0)}</strong> <span>Followers</span></div>
-          <div class="profile-stat"><strong>${formatCount(profile.followingCount || 0)}</strong> <span>Following</span></div>
-          <div class="profile-stat"><strong>${formatCount(profile.postsCount || 0)}</strong> <span>Posts</span></div>
+          <div class="profile-stat"><strong>${followersHidden ? '⊘' : formatCount(profile.followersCount || 0)}</strong> <span>${t('lbl_followers')}</span></div>
+          <div class="profile-stat"><strong>${formatCount(profile.followingCount || 0)}</strong> <span>${t('lbl_following')}</span></div>
+          <div class="profile-stat"><strong>${formatCount(profile.postsCount || 0)}</strong> <span>${t('lbl_posts')}</span></div>
         </div>
       </div>
       <div class="profile-tabs">
@@ -321,8 +321,8 @@ async function renderMsgRequests() {
         </div>
         <div style="font-size:0.88rem;color:var(--text);padding-left:2px;word-break:break-word">${escapeHTML(r.text || '')}</div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" onclick="acceptMsgRequest('${r.fromUid}','${escapeHTML(r.fromName||'Member')}')">✓ Accept</button>
-          <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="declineMsgRequest('${r.fromUid}')">Decline</button>
+          <button class="btn btn-primary btn-sm" onclick="acceptMsgRequest('${r.fromUid}','${escapeHTML(r.fromName||'Member')}')">✓ ${t('btn_accept')}</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="declineMsgRequest('${r.fromUid}')">${t('btn_decline')}</button>
         </div>
       </div>`).join('');
   } catch (e) {

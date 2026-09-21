@@ -71,25 +71,25 @@ function _renderGroupsList(groups, isSearching) {
   const other = groups.filter(g => !mine.has(g.id) && (isSearching || g.privacy !== 'private'));
 
   if (groups.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-title">No groups yet</div><div class="empty-state-desc">Be the first to start one</div></div>';
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('groups_empty_title')}</div><div class="empty-state-desc">${t('groups_empty_desc')}</div></div>`;
     return;
   }
 
   let html = '';
   if (myGroups.length) {
-    html += '<div class="sidebar-section-title" style="padding:12px 4px 8px">My Groups</div>';
+    html += `<div class="sidebar-section-title" style="padding:12px 4px 8px">${t('groups_mine')}</div>`;
     html += myGroups.map(_groupCardHTML).join('');
   }
-  html += '<div class="sidebar-section-title" style="padding:16px 4px 8px">Discover</div>';
+  html += `<div class="sidebar-section-title" style="padding:16px 4px 8px">${t('groups_discover_hdr')}</div>`;
   html += other.length ? other.map(_groupCardHTML).join('')
-    : '<div style="padding:12px 4px;color:var(--text-dim);font-size:0.85rem">No other groups to show</div>';
+    : `<div style="padding:12px 4px;color:var(--text-dim);font-size:0.85rem">${t('groups_no_other')}</div>`;
   container.innerHTML = html;
 }
 
 function _groupCardHTML(g) {
   const privacyLabel = g.privacy === 'private'
-    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Private'
-    : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Public';
+    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> ' + t('lbl_private')
+    : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ' + t('lbl_public') + '';
   return `<div class="group-card" onclick="openGroup('${g.id}')">
     <div class="group-card-cover" style="${g.coverURL ? `background-image:url('${escapeHTML(g.coverURL)}')` : ''}"></div>
     <div class="group-card-body">
