@@ -98,28 +98,28 @@
           <div class="landing-topbar-icon"><img class="brand-logo-img brand-logo-topbar" src="assets/logo.png" alt="Bum Book"></div>
           <span class="landing-topbar-name">Bum Book</span>
         </div>
-        <button class="landing-topbar-signin" onclick="showPage('login')">Sign in</button>
+        <button class="landing-topbar-signin" onclick="showPage('login')" data-i18n="btn_signin">Sign in</button>
       </div>
       <div class="landing-hero">
-        <div class="landing-badge"><span class="landing-badge-dot"></span><span>Free to join · Verify to unlock more</span></div>
+        <div class="landing-badge"><span class="landing-badge-dot"></span><span data-i18n="landing_badge">Free to join · Verify to unlock more</span></div>
 
         <h1 class="landing-headline">
-          <span class="landing-headline-eyebrow">Welcome to</span>
+          <span class="landing-headline-eyebrow" data-i18n="landing_welcome">Welcome to</span>
           <span class="landing-headline-main">Bum Book</span>
         </h1>
 
-        <p class="landing-tagline">Connect, share, and chat<br>with people who matter to you.</p>
+        <p class="landing-tagline" data-i18n="landing_tagline">Connect, share, and chat<br>with people who matter to you.</p>
 
         <div class="landing-ctas">
-          <button class="landing-cta-primary" onclick="showPage('register')"><span>Create your account</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
-          <button class="landing-cta-secondary" onclick="showPage('login')">Already have an account? <strong>Sign in →</strong></button>
+          <button class="landing-cta-primary" onclick="showPage('register')"><span data-i18n="landing_cta_create">Create your account</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+          <button class="landing-cta-secondary" onclick="showPage('login')" data-i18n="landing_cta_signin"><span>Already have an account? </span><strong>Sign in →</strong></button>
           <button id="pwaInstallBtn" class="landing-cta-install" onclick="triggerPwaInstall()" style="display:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Add to Home Screen</button>
         </div>
 
         <div class="landing-features">
-          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Posts, photos & events</div>
-          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Direct messaging</div>
-          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Verified profiles</div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="landing_feature_posts">Posts, photos & events</span></div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="landing_feature_dm">Direct messaging</span></div>
+          <div class="landing-feature"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="landing_feature_verified">Verified profiles</span></div>
         </div>
       </div>
       <div class="landing-footer"><p>By joining you agree to the <a href="#" onclick="return false">Terms of Service</a> and <a href="#" onclick="return false">Privacy Policy</a></p></div>
@@ -128,16 +128,16 @@
       <div class="auth-page">
         <div class="auth-card">
           <div class="auth-logo"><img class="brand-logo-img brand-logo-auth" src="assets/logo.png" alt="Bum Book"></div>
-          <div class="auth-title">Sign in to Bum Book</div>
+          <div class="auth-title" data-i18n="auth_signin_title">Sign in to Bum Book</div>
           <form onsubmit="handleLogin(event)">
-            <div class="form-group"><label class="form-label">Email</label><input id="loginEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
-            <div class="form-group"><label class="form-label">Password</label><input id="loginPass" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password"></div>
-            <button id="loginBtn" class="btn btn-primary btn-block" type="submit">Sign in</button>
+            <div class="form-group"><label class="form-label" data-i18n="form_email">Email</label><input id="loginEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
+            <div class="form-group"><label class="form-label" data-i18n="form_password">Password</label><input id="loginPass" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+            <button id="loginBtn" class="btn btn-primary btn-block" type="submit" data-i18n="btn_signin">Sign in</button>
           </form>
-          <div class="divider">or</div>
-          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>Continue with Google</button>
-          <div class="auth-footer">Don't have an account? <a onclick="showPage('register')">Sign up</a></div>
-          <div class="auth-footer" style="margin-top:8px"><a onclick="showPage('reset')" style="color:var(--text-dim)">Forgot password?</a></div>
+          <div class="divider" data-i18n="divider_or">or</div>
+          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg><span data-i18n="btn_google">Continue with Google</span></button>
+          <div class="auth-footer"><span data-i18n="auth_no_account">Don't have an account?</span> <a onclick="showPage('register')" data-i18n="btn_signup">Sign up</a></div>
+          <div class="auth-footer" style="margin-top:8px"><a onclick="showPage('reset')" style="color:var(--text-dim)" data-i18n="auth_forgot_password">Forgot password?</a></div>
         </div>
       </div>
     </div>
@@ -145,18 +145,18 @@
       <div class="auth-page">
         <div class="auth-card">
           <div class="auth-logo"><img class="brand-logo-img brand-logo-auth" src="assets/logo.png" alt="Bum Book"></div>
-          <div class="auth-title">Join Bum Book</div>
-          <div class="auth-sub">Create your account — free to join, verify to unlock everything</div>
+          <div class="auth-title" data-i18n="auth_join_title">Join Bum Book</div>
+          <div class="auth-sub" data-i18n="auth_join_sub">Create your account — free to join, verify to unlock everything</div>
           <form onsubmit="handleRegister(event)">
-            <div class="form-group"><label class="form-label">Full Name</label><input id="regName" class="form-input" type="text" placeholder="Alexandra Smith" autocomplete="name"></div>
-            <div class="form-group"><label class="form-label">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="regHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="username"></div></div>
-            <div class="form-group"><label class="form-label">Email</label><input id="regEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
-            <div class="form-group"><label class="form-label">Password</label><input id="regPass" class="form-input" type="password" placeholder="Min. 8 characters" autocomplete="new-password"></div>
-            <button id="regBtn" class="btn btn-primary btn-block" type="submit">Create account</button>
+            <div class="form-group"><label class="form-label" data-i18n="form_fullname">Full Name</label><input id="regName" class="form-input" type="text" placeholder="Alexandra Smith" autocomplete="name"></div>
+            <div class="form-group"><label class="form-label" data-i18n="form_username">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="regHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="username"></div></div>
+            <div class="form-group"><label class="form-label" data-i18n="form_email">Email</label><input id="regEmail" class="form-input" type="email" placeholder="you@example.com" autocomplete="email"></div>
+            <div class="form-group"><label class="form-label" data-i18n="form_password">Password</label><input id="regPass" class="form-input" type="password" placeholder="Min. 8 characters" autocomplete="new-password"></div>
+            <button id="regBtn" class="btn btn-primary btn-block" type="submit" data-i18n="btn_create_account">Create account</button>
           </form>
-          <div class="divider">or</div>
-          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>Continue with Google</button>
-          <div class="auth-footer">Already a member? <a onclick="showPage('login')">Sign in</a></div>
+          <div class="divider" data-i18n="divider_or">or</div>
+          <button class="btn-google" onclick="handleGoogleAuth()"><svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg><span data-i18n="btn_google">Continue with Google</span></button>
+          <div class="auth-footer"><span data-i18n="auth_already_member">Already a member?</span> <a onclick="showPage('login')" data-i18n="btn_signin">Sign in</a></div>
         </div>
       </div>
     </div>
@@ -164,11 +164,11 @@
       <div class="auth-page">
         <div class="auth-card">
           <div class="auth-logo"><img class="brand-logo-img brand-logo-auth" src="assets/logo.png" alt="Bum Book"></div>
-          <div class="auth-title">Reset password</div>
-          <div class="auth-sub">Enter your email and we'll send you a reset link</div>
-          <div class="form-group"><label class="form-label">Email</label><input id="resetEmail" class="form-input" type="email" placeholder="you@example.com"></div>
-          <button class="btn btn-primary btn-block" onclick="sendReset()">Send reset link</button>
-          <div class="auth-footer" style="margin-top:16px"><a onclick="showPage('login')">← Back to sign in</a></div>
+          <div class="auth-title" data-i18n="auth_reset_title">Reset password</div>
+          <div class="auth-sub" data-i18n="auth_reset_sub">Enter your email and we'll send you a reset link</div>
+          <div class="form-group"><label class="form-label" data-i18n="form_email">Email</label><input id="resetEmail" class="form-input" type="email" placeholder="you@example.com"></div>
+          <button class="btn btn-primary btn-block" onclick="sendReset()" data-i18n="btn_send_reset">Send reset link</button>
+          <div class="auth-footer" style="margin-top:16px"><a onclick="showPage('login')" data-i18n="auth_back_to_signin">← Back to sign in</a></div>
         </div>
       </div>
     </div>
@@ -183,11 +183,11 @@
       <div class="nav-link" data-page="discover" onclick="showPage('discover')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span data-i18n="nav_discover">Discover</span></div>
       <div class="nav-link" data-page="reels" onclick="showPage('reels')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="17" y2="7"/><line x1="2" y1="7" x2="22" y2="7"/><polygon points="10 12 15 14.5 10 17"/></svg></span><span data-i18n="nav_reels">Reels</span></div>
       <div class="nav-link" data-page="groups" onclick="showPage('groups')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span data-i18n="nav_groups">Groups</span></div>
-      <div class="nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Notifications</span><span class="nav-badge" id="navNotifBadge" style="display:none">0</span></div>
-      <div class="nav-link" data-page="messages" onclick="showPage('messages')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span>Messages</span><span class="nav-badge" id="navMsgBadge" style="display:none">0</span></div>
+      <div class="nav-link" data-page="notifications" onclick="showPage('notifications')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span data-i18n="nav_notifications">Notifications</span><span class="nav-badge" id="navNotifBadge" style="display:none">0</span></div>
+      <div class="nav-link" data-page="messages" onclick="showPage('messages')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span data-i18n="nav_messages">Messages</span><span class="nav-badge" id="navMsgBadge" style="display:none">0</span></div>
       <div class="nav-link" data-page="profile" onclick="showPage('profile')"><span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span data-i18n="nav_profile">Profile</span></div>
     </div>
-    <button class="nav-post-btn" onclick="openPostModal()"><span>Post</span></button>
+    <button class="nav-post-btn" onclick="openPostModal()"><span data-i18n="btn_post">Post</span></button>
     <button class="nav-theme-btn nav-push-btn" id="navPushBtn" onclick="togglePushFromNav()" title="Push notifications" aria-label="Push notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="push-dot" id="pushToggleIcon"></span></button>
     <button class="nav-theme-btn" onclick="toggleTheme()" title="Toggle theme"><span id="themeToggleIcon">☀</span></button>
     <div class="nav-user" id="navUserWrap" style="display:none" onclick="showPage('profile')">
@@ -244,21 +244,21 @@
       <div id="feedPosts"></div>
     </div>
 <div class="page" id="page-discover">
-      <div class="page-header"><h1>Discover</h1></div>
+      <div class="page-header"><h1 data-i18n="hdr_discover">Discover</h1></div>
       <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
         <input id="discoverSearchInput" class="form-input" type="text" placeholder="Search people, posts, hashtags, videos, groups" oninput="handleDiscoverSearch(this.value)" style="border-radius:9999px;background:var(--bg-3)">
       </div>
       <div id="discoverResults">
-        <div class="empty-state"><div class="empty-state-icon">⌕</div><div class="empty-state-title">Search Discover</div><div class="empty-state-desc">Find people, posts, hashtags, videos, and groups</div></div>
+        <div class="empty-state"><div class="empty-state-icon">⌕</div><div class="empty-state-title" data-i18n="discover_search_title">Search Discover</div><div class="empty-state-desc" data-i18n="discover_search_desc">Find people, posts, hashtags, videos, and groups</div></div>
       </div>
     </div>
 <div class="page" id="page-notifications">
-      <div class="page-header"><h1>Notifications</h1></div>
+      <div class="page-header"><h1 data-i18n="hdr_notifications">Notifications</h1></div>
       <div id="notifList"></div>
     </div>
 <div class="page" id="page-messages">
       <div class="messages-list-view" id="messagesListView">
-        <div class="page-header" style="position:static;display:flex;align-items:center;justify-content:space-between;padding-right:16px"><h1>Messages</h1></div>
+        <div class="page-header" style="position:static;display:flex;align-items:center;justify-content:space-between;padding-right:16px"><h1 data-i18n="hdr_messages">Messages</h1></div>
         <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:2px">
           <button id="msgTabChats" class="msg-tab active" onclick="_switchMsgTab('chats')">Chats</button>
           <button id="msgTabRequests" class="msg-tab" onclick="_switchMsgTab('requests')" style="position:relative">Requests<span id="msgReqBadge" style="display:none;position:absolute;top:6px;right:8px;background:var(--accent);color:#fff;font-size:0.65rem;font-weight:700;border-radius:9999px;padding:1px 5px;min-width:16px;text-align:center"></span></button>
@@ -288,14 +288,14 @@
     </div>
 <div class="page" id="page-profile">
       <div class="page-header">
-        <h1>Profile</h1>
+        <h1 data-i18n="hdr_profile">Profile</h1>
         <button class="btn btn-outline btn-sm" onclick="showPage('settings')" style="margin-left:auto;color:var(--text-dim)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
         <button class="btn btn-outline btn-sm" onclick="handleLogout()" style="margin-left:8px;color:var(--text-dim)">Sign out</button>
       </div>
       <div id="ownProfileContent"></div>
     </div>
 <div class="page" id="page-settings">
-      <div class="page-header"><h1>Settings</h1></div>
+      <div class="page-header"><h1 data-i18n="hdr_settings">Settings</h1></div>
       <div style="padding:16px">
         <div class="sidebar-section-title" style="padding:0 0 10px" data-i18n="settings_appearance">Appearance</div>
         <div id="themeModeGroup" style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
@@ -327,7 +327,7 @@
 <div class="page" id="page-channel">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Channel</h1></div>
+        <div><h1 data-i18n="hdr_channel">Channel</h1></div>
       </div>
       <div id="channelContent"></div>
     </div>
@@ -345,7 +345,7 @@
     </div>
 <div class="page" id="page-groups">
       <div class="page-header">
-        <h1>Groups</h1>
+        <h1 data-i18n="hdr_groups">Groups</h1>
         <button class="btn btn-primary btn-sm" id="createGroupBtn" onclick="openCreateGroupModal()" style="margin-left:auto">+ Create</button>
       </div>
       <div style="padding:12px 16px 0">
@@ -356,35 +356,35 @@
 <div class="page" id="page-group-detail">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Group</h1></div>
+        <div><h1 data-i18n="hdr_group">Group</h1></div>
       </div>
       <div id="groupDetailContent"></div>
     </div>
 <div class="page" id="page-user-profile">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Profile</h1></div>
+        <div><h1 data-i18n="hdr_profile">Profile</h1></div>
       </div>
       <div id="userProfileContent"></div>
     </div>
 <div class="page" id="page-post-detail">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Post</h1></div>
+        <div><h1 data-i18n="hdr_post">Post</h1></div>
       </div>
       <div id="postDetailContent"></div>
     </div>
 <div class="page" id="page-bsky-profile">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Bluesky profile</h1></div>
+        <div><h1 data-i18n="hdr_bsky_profile">Bluesky profile</h1></div>
       </div>
       <div id="bskyProfileContent"></div>
     </div>
 <div class="page" id="page-bsky-post">
       <div class="page-header">
         <div class="pointer" onclick="goBack()" style="font-size:1.2rem">←</div>
-        <div><h1>Post</h1></div>
+        <div><h1 data-i18n="hdr_post">Post</h1></div>
       </div>
       <div id="bskyPostContent"></div>
     </div>
@@ -423,7 +423,7 @@
     <div class="modal-header"><div class="modal-close" onclick="closeModal('editProfileModal')">✕</div><h2>Edit Profile</h2><button class="btn btn-primary btn-sm" onclick="saveProfile()" style="margin-left:auto">Save</button></div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Display Name</label><input id="editDisplayName" class="form-input" type="text" placeholder="Your name"></div>
-      <div class="form-group"><label class="form-label">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="editHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="off"></div></div>
+      <div class="form-group"><label class="form-label" data-i18n="form_username">Username</label><div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim)">@</span><input id="editHandle" class="form-input" type="text" placeholder="yourhandle" style="padding-left:30px" autocomplete="off"></div></div>
       <div class="form-group"><label class="form-label">Bio</label><textarea id="editBio" class="form-input" rows="3" placeholder="Tell people about yourself" style="resize:vertical"></textarea></div>
     </div>
   </div>

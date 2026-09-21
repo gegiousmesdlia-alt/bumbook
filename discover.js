@@ -39,10 +39,9 @@ async function _runDiscoverSearch(q) {
   const isHashtagQuery = q.startsWith('#');
   const tag = (isHashtagQuery ? q.slice(1) : q).toLowerCase().trim();
 
-  const [hashtagHTML, peopleHTML, bskyHTML, postsHTML, videosHTML, groupsHTML] = await Promise.all([
+  const [hashtagHTML, peopleHTML, postsHTML, videosHTML, groupsHTML] = await Promise.all([
     _searchDiscoverHashtag(tag),
-    _searchDiscoverPeople(q),
-    _searchDiscoverBsky(q),
+    _searchDiscoverPeopleAndBsky(q),
     isHashtagQuery ? Promise.resolve('') : _searchDiscoverPosts(q),
     _searchDiscoverVideos(q),
     _searchDiscoverGroups(q)
@@ -51,7 +50,6 @@ async function _runDiscoverSearch(q) {
   const sections = [
     hashtagHTML && _discoverSection('#' + escapeHTML(tag), hashtagHTML),
     peopleHTML && _discoverSection('People', peopleHTML),
-    bskyHTML && _discoverSection('🦋 Bluesky accounts', bskyHTML),
     postsHTML && _discoverSection('Posts', postsHTML),
     videosHTML && _discoverSection('Videos', videosHTML),
     groupsHTML && _discoverSection('Groups', groupsHTML)
@@ -62,6 +60,28 @@ async function _runDiscoverSearch(q) {
 
 function _discoverSection(title, innerHTML) {
   return `<div class="page-header" style="position:static;border-bottom:none;padding-bottom:0;margin-top:8px"><div style="font-weight:700">${title}</div></div>${innerHTML}`;
+}
+
+/* One unified list — real bumbook members and real Bluesky accounts,
+   sorted together rather than split into two zones. The one thing kept,
+   on purpose: a small inline 🦋 next to a Bluesky result's name, same
+   visual weight as a verified checkmark — enough to stay honest about
+   which accounts are actual bumbook members without splitting the list
+   back into two visually separate sections. */
+async function _searchDiscoverPeopleAndBsky(q) {
+  const [peopleCards, bskyCards] = await Promise.all([
+    _searchDiscoverPeople(q, { asCards: true }),
+    _searchDiscoverBsky(q, { asCards: true })
+  ]);
+  const all = [...peopleCards, ...bskyCards];
+  if (!all.length) return '';
+  // Shuffle rather than "all real members first, then all Bluesky" or
+  // vice versa — either fixed order would itself read as a hierarchy.
+  for (let i = all.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+  return all.join('');
 }
 
 async function _searchDiscoverPeople(q) {
@@ -75,7 +95,7 @@ async function _searchDiscoverPeople(q) {
       if (p.uid === currentUser?.uid || blockedUids.has(p.uid)) return;
       if ((p.displayName || '').toLowerCase().includes(lower) || (p.handle || '').toLowerCase().includes(lower)) matches.push(p);
     });
-    if (!matches.length) return '';
+    if (!matches.length) return [];
     const [myConnSnap, reqSnap] = await Promise.all([
       currentUser ? window.XF.get('connections/' + currentUser.uid) : Promise.resolve(null),
       currentUser ? window.XF.get('connectionRequests') : Promise.resolve(null)
@@ -94,25 +114,25 @@ async function _searchDiscoverPeople(q) {
         </div>
         <div onclick="event.stopPropagation()">${connectBtnHTML(p.uid, status, incomingReqId)}</div>
       </div>`;
-    }).join('');
-  } catch (e) { return ''; }
+    });
+  } catch (e) { return []; }
 }
 
 async function _searchDiscoverBsky(q) {
-  if (typeof escapeAttrJS !== 'function' || typeof _blueskyAvatarHTML !== 'function') return ''; // bluesky.js not loaded
+  if (typeof escapeAttrJS !== 'function' || typeof _blueskyAvatarHTML !== 'function') return []; // bluesky.js not loaded
   try {
     const resp = await fetch('/api/bluesky?action=searchActors&q=' + encodeURIComponent(q));
     const data = await resp.json();
-    if (!data.configured || data.error || !data.accounts?.length) return '';
+    if (!data.configured || data.error || !data.accounts?.length) return [];
     return data.accounts.map(a => `<div class="people-card" onclick="openBskyProfile('${escapeAttrJS(a.did)}')">
       ${_blueskyAvatarHTML(a, 'md')}
       <div class="people-card-info">
-        <div class="people-card-name">${escapeHTML(a.displayName)}</div>
+        <div class="people-card-name">${escapeHTML(a.displayName)} <span title="Real Bluesky account, not a bumbook member">🦋</span></div>
         <div class="people-card-handle">@${escapeHTML(a.handle)}</div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();openBskyProfile('${escapeAttrJS(a.did)}')">View</button>
-    </div>`).join('');
-  } catch (e) { return ''; }
+    </div>`);
+  } catch (e) { return []; }
 }
 
 /* Requires a Firestore composite index the first time it actually runs

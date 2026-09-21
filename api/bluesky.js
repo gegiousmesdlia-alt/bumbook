@@ -182,7 +182,7 @@ async function handleProfile(req, res) {
   try {
     const [profileData, feedData] = await Promise.all([
       getJSON(`${APPVIEW}/xrpc/app.bsky.actor.getProfile?actor=${encodeURIComponent(actor)}`),
-      getJSON(`${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(actor)}&limit=25&filter=posts_no_replies`)
+      getJSON(`${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(actor)}&limit=25`)
     ]);
     if (profileData.error) { res.status(200).json({ profile: null, posts: [], configured: true, error: 'api', message: profileData.message || profileData.error }); return; }
 
