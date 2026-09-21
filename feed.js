@@ -284,7 +284,7 @@ async function _loadFeedPage(container, isFirst) {
 
     const mergedItems = localItems.concat(blueskyItems).sort((a, b) => b.ts - a.ts);
     if (isFirst && mergedItems.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">◪</div><div class="empty-state-title">Nothing here yet</div><div class="empty-state-desc">Be the first to post something</div></div>';
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">◪</div><div class="empty-state-title">${t('feed_empty_title')}</div><div class="empty-state-desc">${t('feed_empty_desc')}</div></div>`;
       _feedLoading = false; return;
     }
     const postHTMLs = mergedItems.map(item => item.html);
@@ -317,13 +317,13 @@ async function _loadFeedPage(container, isFirst) {
     while (wrapper.firstChild) container.insertBefore(wrapper.firstChild, sentinel);
     _attachSeenObserver(container);
     if (_feedFullyDone) {
-      sentinel.innerHTML = '<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">You\'re all caught up ✓</div>';
+      sentinel.innerHTML = `<div style="text-align:center;color:var(--text-dim);font-size:0.8rem;padding:20px">${t('feed_caught_up')} ✓</div>`;
     } else {
       sentinel.innerHTML = '';
     }
   } catch (err) {
     if (spinner) spinner.remove();
-    if (isFirst) container.innerHTML = '<div class="empty-state"><div class="empty-state-desc">Could not load posts</div></div>';
+    if (isFirst) container.innerHTML = `<div class="empty-state"><div class="empty-state-desc">${t('feed_load_error')}</div></div>`;
   }
   _feedLoading = false;
 }

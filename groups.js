@@ -32,6 +32,8 @@ async function _removeFromMyGroupIds(groupId) {
 ═══════════════════════════════════════════════════════════════════════════ */
 let _allGroupsCache = [];
 
+let _cachedGroupSuggestions = null; // fetched once per page visit, reused if the search box gets cleared
+
 async function renderGroupsPage() {
   const container = $('groupsListContainer');
   if (!container) return;
@@ -41,11 +43,15 @@ async function renderGroupsPage() {
   if (createBtn) createBtn.style.display = currentUser ? '' : 'none';
 
   try {
-    const snap = await window.XF.get('groups');
+    const [snap, suggestions] = await Promise.all([
+      window.XF.get('groups'),
+      (typeof _fetchSuggestedGroups === 'function') ? _fetchSuggestedGroups(10) : Promise.resolve([])
+    ]);
     const groups = [];
     if (snap.exists()) snap.forEach(c => groups.push({ id: c.key, ...c.val() }));
     groups.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     _allGroupsCache = groups;
+    _cachedGroupSuggestions = suggestions;
     _renderGroupsList(groups);
   } catch (e) {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-title">Could not load groups</div></div>';
@@ -63,14 +69,16 @@ function _renderGroupsList(groups, isSearching) {
   if (!container) return;
   const mine = myGroupIds();
   const myGroups = groups.filter(g => mine.has(g.id));
-  // BUG FIX: private groups you're not in used to show in the default
-  // browse list — this only excludes them from BROWSING. Explicitly
-  // searching a private group's exact name still finds it (same as most
-  // apps: private groups are unlisted, not literally unfindable), so
-  // "search for it, then request to join" still works as expected.
-  const other = groups.filter(g => !mine.has(g.id) && (isSearching || g.privacy !== 'private'));
+  // Groups you're not in — INCLUDING public ones — no longer browse in a
+  // list at all unless you're actually searching. Not a privacy rule like
+  // the private-group fix below; this one's purely about not turning the
+  // Groups page into an endless scroll of every group that exists. A
+  // horizontal "suggestions" tray (below) covers casual discovery instead.
+  const other = isSearching
+    ? groups.filter(g => !mine.has(g.id) && g.privacy !== 'private')
+    : [];
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && !isSearching) {
     container.innerHTML = `<div class="empty-state"><div class="empty-state-title">${t('groups_empty_title')}</div><div class="empty-state-desc">${t('groups_empty_desc')}</div></div>`;
     return;
   }
@@ -80,9 +88,14 @@ function _renderGroupsList(groups, isSearching) {
     html += `<div class="sidebar-section-title" style="padding:12px 4px 8px">${t('groups_mine')}</div>`;
     html += myGroups.map(_groupCardHTML).join('');
   }
-  html += `<div class="sidebar-section-title" style="padding:16px 4px 8px">${t('groups_discover_hdr')}</div>`;
-  html += other.length ? other.map(_groupCardHTML).join('')
-    : `<div style="padding:12px 4px;color:var(--text-dim);font-size:0.85rem">${t('groups_no_other')}</div>`;
+
+  if (isSearching) {
+    html += `<div class="sidebar-section-title" style="padding:16px 4px 8px">${t('groups_discover_hdr')}</div>`;
+    html += other.length ? other.map(_groupCardHTML).join('')
+      : `<div style="padding:12px 4px;color:var(--text-dim);font-size:0.85rem">${t('groups_no_other')}</div>`;
+  } else if (typeof suggestedGroupsTrayHTML === 'function' && _cachedGroupSuggestions?.length) {
+    html += suggestedGroupsTrayHTML(_cachedGroupSuggestions);
+  }
   container.innerHTML = html;
 }
 
@@ -329,8 +342,9 @@ async function _renderGroupPosts() {
   if (_activeGroup.blueskyFeedActor && typeof fetchBlueskyProfile === 'function') {
     try {
       const data = await fetchBlueskyProfile(_activeGroup.blueskyFeedActor);
+      if (data.error) console.warn('[bsky] group feed fetch returned an error:', data.error, data.message || '');
       bskyItems = (data.posts || []).map(p => ({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
-    } catch (e) { /* Bluesky itself being unreachable — separate concern, local posts below aren't affected by this either */ }
+    } catch (e) { console.error('[bsky] group feed fetch threw:', e); /* Bluesky itself being unreachable — separate concern, local posts below aren't affected by this either */ }
   }
 
   try {
@@ -450,25 +464,80 @@ function _renderGroupAbout() {
     <div class="sidebar-section-title" style="padding:0 0 6px">Privacy</div>
     <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.privacy === 'private' ? 'Private — only members can see posts. ' + (g.joinMode === 'invite' ? 'Invite-only.' : 'Anyone can request to join.') : 'Public — anyone can see posts and join.'}</div>
     <div class="sidebar-section-title" style="padding:0 0 6px">🦋 Bluesky feed</div>
-    ${isAdmin ? `
-      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px">Show a real Bluesky account's posts in this group's Posts tab, clearly marked as external — not written by group members.</div>
-      <div style="display:flex;gap:8px;margin-bottom:20px">
-        <input id="groupBskyActorInput" class="form-input" placeholder="handle.bsky.social" value="${escapeHTML(g.blueskyFeedActor || '')}" style="flex:1">
-        <button class="btn btn-primary btn-sm" onclick="saveGroupBskyFeed('${g.id}')">Save</button>
-      </div>` : `
-      <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.blueskyFeedActor ? 'Showing posts from @' + escapeHTML(g.blueskyFeedActor) : 'None set.'}</div>`}
+    ${isAdmin ? _groupBskyAdminHTML(g) : `
+      <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.blueskyFeedActor ? 'Showing posts from @' + escapeHTML(g.blueskyFeedActorHandle || g.blueskyFeedActor) : 'None set.'}</div>`}
     ${isAdmin ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteGroupConfirm('${g.id}')">Delete group</button>` : ''}
   </div>`;
 }
 
-async function saveGroupBskyFeed(groupId) {
-  const input = $('groupBskyActorInput');
-  const handle = (input?.value || '').trim().replace(/^@/, '');
+function _groupBskyAdminHTML(g) {
+  if (g.blueskyFeedActor) {
+    // Already linked — show what's actually connected (avatar/name if we
+    // have it cached, otherwise just the handle) with a way to unlink.
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:8px;background:var(--bg-3);border-radius:8px">
+      <div style="flex:1;font-size:0.9rem">🦋 @${escapeHTML(g.blueskyFeedActorHandle || g.blueskyFeedActor)}</div>
+      <button class="btn btn-outline btn-sm" onclick="removeGroupBskyFeed('${g.id}')">Remove</button>
+    </div>`;
+  }
+  // Not linked — search-and-select rather than free-typing a handle. This
+  // is the actual fix for "the group feed doesn't work but tapping an
+  // account elsewhere does": both use the identical fetch underneath, but
+  // a hand-typed handle has no validation, while picking a real search
+  // result guarantees a real, resolvable account (its DID, the same
+  // reliable identifier the working profile-tap flow already uses).
+  return `
+    <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px">Search for the real Bluesky account whose posts should show in this group.</div>
+    <input id="groupBskySearchInput" class="form-input" placeholder="Search by name or handle…" oninput="_searchGroupBskyActor(this.value,'${g.id}')" style="margin-bottom:8px">
+    <div id="groupBskySearchResults"></div>
+  `;
+}
+
+let _groupBskySearchDebounce = null;
+async function _searchGroupBskyActor(query, groupId) {
+  clearTimeout(_groupBskySearchDebounce);
+  const q = (query || '').trim();
+  const results = $('groupBskySearchResults');
+  if (!results) return;
+  if (!q) { results.innerHTML = ''; return; }
+  results.innerHTML = '<div class="loading-center" style="padding:8px"><div class="spinner"></div></div>';
+  _groupBskySearchDebounce = setTimeout(async () => {
+    try {
+      const resp = await fetch('/api/bluesky?action=searchActors&q=' + encodeURIComponent(q));
+      const data = await resp.json();
+      if (!data.accounts?.length) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">No accounts found</div>'; return; }
+      results.innerHTML = data.accounts.map(a => `
+        <div class="people-card" style="padding:8px" onclick='_selectGroupBskyActor(${JSON.stringify(groupId)}, ${JSON.stringify(a.did)}, ${JSON.stringify(a.handle)})'>
+          ${(typeof _blueskyAvatarHTML === 'function') ? _blueskyAvatarHTML(a, 'sm') : ''}
+          <div class="people-card-info">
+            <div class="people-card-name" style="font-size:0.9rem">${escapeHTML(a.displayName)}</div>
+            <div class="people-card-handle" style="font-size:0.8rem">@${escapeHTML(a.handle)}</div>
+          </div>
+        </div>`).join('');
+    } catch (e) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">Search failed</div>'; }
+  }, 350);
+}
+
+async function _selectGroupBskyActor(groupId, did, handle) {
   try {
-    await window.XF.update('groups/' + groupId, { blueskyFeedActor: handle || null });
-    _activeGroup.blueskyFeedActor = handle || null;
-    showToast(handle ? 'Bluesky feed connected' : 'Bluesky feed removed');
+    // Storing the DID, not the typed handle — DIDs never change even if
+    // the person later renames their handle, so this stays correct
+    // forever, unlike a hand-typed handle string would.
+    await window.XF.update('groups/' + groupId, { blueskyFeedActor: did, blueskyFeedActorHandle: handle });
+    _activeGroup.blueskyFeedActor = did;
+    _activeGroup.blueskyFeedActorHandle = handle;
+    showToast('Bluesky feed connected');
+    _renderGroupAbout();
   } catch (e) { showToast('Could not save'); }
+}
+
+async function removeGroupBskyFeed(groupId) {
+  try {
+    await window.XF.update('groups/' + groupId, { blueskyFeedActor: null, blueskyFeedActorHandle: null });
+    _activeGroup.blueskyFeedActor = null;
+    _activeGroup.blueskyFeedActorHandle = null;
+    showToast('Bluesky feed removed');
+    _renderGroupAbout();
+  } catch (e) { showToast('Could not remove'); }
 }
 
 /* ── Requests tab (admin only, private+request groups) ── */

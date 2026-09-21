@@ -214,7 +214,7 @@
       <div class="composer" id="feedComposer">
         <div id="composerAvatar"></div>
         <div class="composer-body">
-          <textarea id="postText" placeholder="What's happening?" rows="3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';debouncedComposerPreview(this.value,'postLinkPreview')"></textarea>
+          <textarea id="postText" placeholder="What's happening?" data-i18n-placeholder="post_placeholder" rows="3" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';debouncedComposerPreview(this.value,'postLinkPreview')"></textarea>
           <div id="postLinkPreview"></div>
           <div style="display:flex;gap:8px;margin-bottom:8px">
             <button id="postTypePost" class="btn btn-outline btn-sm active" onclick="togglePostType('post')" style="font-size:0.78rem">✎ Post</button>
@@ -429,37 +429,37 @@
   </div>
 </div>
 <div class="modal-overlay" id="newPostModal" onclick="if(event.target===this)closeModal('newPostModal')">
-      <div class="modal-card"><div class="modal-header"><div class="modal-close" onclick="closeModal('newPostModal')">✕</div><h2>New Post</h2></div>
-      <div class="modal-body"><div class="composer" style="padding:0;border:none"><div class="composer-body" style="width:100%"><textarea id="modalPostText" placeholder="What's happening?" rows="4" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:1.13rem;resize:none"></textarea><div class="composer-actions"><button class="composer-submit" onclick="submitModalPost()">Post</button></div></div></div></div>
+      <div class="modal-card"><div class="modal-header"><div class="modal-close" onclick="closeModal('newPostModal')">✕</div><h2 data-i18n="post_modal_title">New Post</h2></div>
+      <div class="modal-body"><div class="composer" style="padding:0;border:none"><div class="composer-body" style="width:100%"><textarea id="modalPostText" placeholder="What's happening?" data-i18n-placeholder="post_placeholder" rows="4" style="width:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:1.13rem;resize:none"></textarea><div class="composer-actions"><button class="composer-submit" onclick="submitModalPost()" data-i18n="btn_post">Post</button></div></div></div></div>
       </div>
     </div>
 <div class="paywall-modal" id="createGroupModal" onclick="if(event.target===this)closeCreateGroupModal()">
   <div class="paywall-card" style="text-align:left">
-    <div class="paywall-title" style="text-align:center">Create a group</div>
+    <div class="paywall-title" style="text-align:center" data-i18n="group_modal_title">Create a group</div>
     <div class="form-group" style="margin-top:16px">
-      <label class="form-label">Group name</label>
-      <input type="text" id="groupNameInput" class="form-input" placeholder="e.g. Lagos Football Fans" maxlength="60">
+      <label class="form-label" data-i18n="group_name_label">Group name</label>
+      <input type="text" id="groupNameInput" class="form-input" placeholder="e.g. Lagos Football Fans" data-i18n-placeholder="group_name_placeholder" maxlength="60">
     </div>
     <div class="form-group">
-      <label class="form-label">Description (optional)</label>
-      <textarea id="groupDescInput" class="form-input" rows="2" placeholder="What is this group about?" maxlength="300"></textarea>
+      <label class="form-label" data-i18n="group_desc_label">Description (optional)</label>
+      <textarea id="groupDescInput" class="form-input" rows="2" placeholder="What is this group about?" data-i18n-placeholder="group_desc_placeholder" maxlength="300"></textarea>
     </div>
     <div class="form-group">
-      <label class="form-label">Group photo (optional)</label>
+      <label class="form-label" data-i18n="group_photo_label">Group photo (optional)</label>
       <input type="file" id="groupCoverInput" accept="image/*" class="form-input" onchange="previewGroupCover(this)">
       <div id="groupCoverPreview"></div>
     </div>
     <div class="form-group">
-      <label class="form-label">Privacy</label>
-      <label class="settings-radio-row" style="margin-bottom:8px"><input type="radio" name="groupPrivacy" value="public" checked onchange="onGroupPrivacyChange(this.value)"><span>Public <span style="color:var(--text-dim);font-weight:400">— anyone can see posts and join</span></span></label>
-      <label class="settings-radio-row"><input type="radio" name="groupPrivacy" value="private" onchange="onGroupPrivacyChange(this.value)"><span>Private <span style="color:var(--text-dim);font-weight:400">— only members see posts</span></span></label>
+      <label class="form-label" data-i18n="group_privacy_label">Privacy</label>
+      <label class="settings-radio-row" style="margin-bottom:8px"><input type="radio" name="groupPrivacy" value="public" checked onchange="onGroupPrivacyChange(this.value)"><span data-i18n="group_privacy_public">Public <span style="color:var(--text-dim);font-weight:400">— anyone can see posts and join</span></span></label>
+      <label class="settings-radio-row"><input type="radio" name="groupPrivacy" value="private" onchange="onGroupPrivacyChange(this.value)"><span data-i18n="group_privacy_private">Private <span style="color:var(--text-dim);font-weight:400">— only members see posts</span></span></label>
     </div>
     <div class="form-group" id="groupJoinModeRow" style="display:none;flex-direction:column">
-      <label class="form-label">How people join</label>
-      <label class="settings-radio-row" style="margin-bottom:8px"><input type="radio" name="groupJoinMode" value="request" checked><span>Anyone can request to join</span></label>
-      <label class="settings-radio-row"><input type="radio" name="groupJoinMode" value="invite"><span>Invite only</span></label>
+      <label class="form-label" data-i18n="group_joinmode_label">How people join</label>
+      <label class="settings-radio-row" style="margin-bottom:8px"><input type="radio" name="groupJoinMode" value="request" checked><span data-i18n="group_joinmode_request">Anyone can request to join</span></label>
+      <label class="settings-radio-row"><input type="radio" name="groupJoinMode" value="invite"><span data-i18n="group_joinmode_invite">Invite only</span></label>
     </div>
-    <button class="btn btn-primary btn-block btn-lg" id="createGroupSubmitBtn" onclick="submitCreateGroup()">Create group</button>
+    <button class="btn btn-primary btn-block btn-lg" id="createGroupSubmitBtn" onclick="submitCreateGroup()" data-i18n="btn_create_group">Create group</button>
     <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="closeCreateGroupModal()">Cancel</button>
   </div>
 </div>

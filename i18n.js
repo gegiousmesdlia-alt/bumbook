@@ -52,7 +52,18 @@ const TRANSLATIONS = {
     groups_mine: 'My Groups', groups_no_other: 'No other groups to show',
     lbl_followers: 'Followers', lbl_following: 'Following', lbl_posts: 'Posts', lbl_private: 'Private', lbl_public: 'Public',
     messages_empty_desc: 'Connect with members to start chatting', messages_empty_title: 'No messages yet',
-    notifs_empty: 'No notifications yet'
+    notifs_empty: 'No notifications yet',
+    btn_create_group: 'Create group', feed_caught_up: "You're all caught up",
+    feed_empty_desc: 'Be the first to post something', feed_empty_title: 'Nothing here yet',
+    feed_load_error: 'Could not load posts',
+    group_desc_label: 'Description (optional)', group_desc_placeholder: 'What is this group about?',
+    group_joinmode_invite: 'Invite only', group_joinmode_label: 'How people join',
+    group_joinmode_request: 'Anyone can request to join', group_modal_title: 'Create a group',
+    group_name_label: 'Group name', group_name_placeholder: 'e.g. Lagos Football Fans',
+    group_photo_label: 'Group photo (optional)', group_privacy_label: 'Privacy',
+    group_privacy_private: 'Private <span style="color:var(--text-dim);font-weight:400">— only members see posts</span>',
+    group_privacy_public: 'Public <span style="color:var(--text-dim);font-weight:400">— anyone can see posts and join</span>',
+    post_modal_title: 'New Post', post_placeholder: "What's happening?"
   },
   de: {
     nav_home: 'Start', nav_discover: 'Entdecken', nav_reels: 'Reels', nav_groups: 'Gruppen',
@@ -86,7 +97,18 @@ const TRANSLATIONS = {
     groups_mine: 'Meine Gruppen', groups_no_other: 'Keine weiteren Gruppen',
     lbl_followers: 'Follower', lbl_following: 'Folge ich', lbl_posts: 'Beiträge', lbl_private: 'Privat', lbl_public: 'Öffentlich',
     messages_empty_desc: 'Verbinde dich mit Mitgliedern, um zu chatten', messages_empty_title: 'Noch keine Nachrichten',
-    notifs_empty: 'Noch keine Mitteilungen'
+    notifs_empty: 'Noch keine Mitteilungen',
+    btn_create_group: 'Gruppe erstellen', feed_caught_up: 'Du bist auf dem neuesten Stand',
+    feed_empty_desc: 'Sei der Erste, der etwas postet', feed_empty_title: 'Noch nichts hier',
+    feed_load_error: 'Beiträge konnten nicht geladen werden',
+    group_desc_label: 'Beschreibung (optional)', group_desc_placeholder: 'Worum geht es in dieser Gruppe?',
+    group_joinmode_invite: 'Nur auf Einladung', group_joinmode_label: 'Wie Leute beitreten',
+    group_joinmode_request: 'Jeder kann eine Anfrage stellen', group_modal_title: 'Gruppe erstellen',
+    group_name_label: 'Gruppenname', group_name_placeholder: 'z.B. Berlin Fußballfans',
+    group_photo_label: 'Gruppenfoto (optional)', group_privacy_label: 'Datenschutz',
+    group_privacy_private: 'Privat <span style="color:var(--text-dim);font-weight:400">— nur Mitglieder sehen Beiträge</span>',
+    group_privacy_public: 'Öffentlich <span style="color:var(--text-dim);font-weight:400">— jeder kann Beiträge sehen und beitreten</span>',
+    post_modal_title: 'Neuer Beitrag', post_placeholder: 'Was gibt es Neues?'
   },
   pt: {
     nav_home: 'Início', nav_discover: 'Descobrir', nav_reels: 'Reels', nav_groups: 'Grupos',
@@ -120,7 +142,18 @@ const TRANSLATIONS = {
     groups_mine: 'Meus Grupos', groups_no_other: 'Sem mais grupos para mostrar',
     lbl_followers: 'Seguidores', lbl_following: 'A seguir', lbl_posts: 'Publicações', lbl_private: 'Privado', lbl_public: 'Público',
     messages_empty_desc: 'Conecte-se com membros para começar a conversar', messages_empty_title: 'Ainda sem mensagens',
-    notifs_empty: 'Ainda sem notificações'
+    notifs_empty: 'Ainda sem notificações',
+    btn_create_group: 'Criar grupo', feed_caught_up: 'Já viu tudo',
+    feed_empty_desc: 'Seja o primeiro a publicar algo', feed_empty_title: 'Ainda nada por aqui',
+    feed_load_error: 'Não foi possível carregar publicações',
+    group_desc_label: 'Descrição (opcional)', group_desc_placeholder: 'Sobre o que é este grupo?',
+    group_joinmode_invite: 'Apenas por convite', group_joinmode_label: 'Como as pessoas entram',
+    group_joinmode_request: 'Qualquer pessoa pode pedir para entrar', group_modal_title: 'Criar um grupo',
+    group_name_label: 'Nome do grupo', group_name_placeholder: 'ex. Adeptos do Benfica',
+    group_photo_label: 'Foto do grupo (opcional)', group_privacy_label: 'Privacidade',
+    group_privacy_private: 'Privado <span style="color:var(--text-dim);font-weight:400">— só os membros veem publicações</span>',
+    group_privacy_public: 'Público <span style="color:var(--text-dim);font-weight:400">— qualquer pessoa pode ver e entrar</span>',
+    post_modal_title: 'Nova publicação', post_placeholder: 'O que está a acontecer?'
   },
   es: {
     nav_home: 'Inicio', nav_discover: 'Descubrir', nav_reels: 'Reels', nav_groups: 'Grupos',
@@ -154,7 +187,18 @@ const TRANSLATIONS = {
     groups_mine: 'Mis Grupos', groups_no_other: 'No hay más grupos para mostrar',
     lbl_followers: 'Seguidores', lbl_following: 'Siguiendo', lbl_posts: 'Publicaciones', lbl_private: 'Privado', lbl_public: 'Público',
     messages_empty_desc: 'Conéctate con miembros para empezar a chatear', messages_empty_title: 'Aún no hay mensajes',
-    notifs_empty: 'Aún no hay notificaciones'
+    notifs_empty: 'Aún no hay notificaciones',
+    btn_create_group: 'Crear grupo', feed_caught_up: 'Ya estás al día',
+    feed_empty_desc: 'Sé el primero en publicar algo', feed_empty_title: 'Nada por aquí todavía',
+    feed_load_error: 'No se pudieron cargar las publicaciones',
+    group_desc_label: 'Descripción (opcional)', group_desc_placeholder: '¿De qué trata este grupo?',
+    group_joinmode_invite: 'Solo con invitación', group_joinmode_label: 'Cómo se unen las personas',
+    group_joinmode_request: 'Cualquiera puede solicitar unirse', group_modal_title: 'Crear un grupo',
+    group_name_label: 'Nombre del grupo', group_name_placeholder: 'ej. Aficionados del Real Madrid',
+    group_photo_label: 'Foto del grupo (opcional)', group_privacy_label: 'Privacidad',
+    group_privacy_private: 'Privado <span style="color:var(--text-dim);font-weight:400">— solo los miembros ven publicaciones</span>',
+    group_privacy_public: 'Público <span style="color:var(--text-dim);font-weight:400">— cualquiera puede ver y unirse</span>',
+    post_modal_title: 'Nueva publicación', post_placeholder: '¿Qué está pasando?'
   },
   fr: {
     nav_home: 'Accueil', nav_discover: 'Découvrir', nav_reels: 'Reels', nav_groups: 'Groupes',
@@ -188,7 +232,18 @@ const TRANSLATIONS = {
     groups_mine: 'Mes Groupes', groups_no_other: 'Aucun autre groupe à afficher',
     lbl_followers: 'Abonnés', lbl_following: 'Abonnements', lbl_posts: 'Publications', lbl_private: 'Privé', lbl_public: 'Public',
     messages_empty_desc: 'Connectez-vous avec des membres pour discuter', messages_empty_title: 'Aucun message pour le moment',
-    notifs_empty: 'Aucune notification pour le moment'
+    notifs_empty: 'Aucune notification pour le moment',
+    btn_create_group: 'Créer un groupe', feed_caught_up: 'Vous êtes à jour',
+    feed_empty_desc: "Soyez le premier à publier quelque chose", feed_empty_title: 'Rien ici pour le moment',
+    feed_load_error: 'Impossible de charger les publications',
+    group_desc_label: 'Description (facultatif)', group_desc_placeholder: 'De quoi parle ce groupe ?',
+    group_joinmode_invite: 'Sur invitation uniquement', group_joinmode_label: "Comment les gens rejoignent",
+    group_joinmode_request: 'Tout le monde peut demander à rejoindre', group_modal_title: 'Créer un groupe',
+    group_name_label: 'Nom du groupe', group_name_placeholder: 'ex. Fans du PSG',
+    group_photo_label: 'Photo du groupe (facultatif)', group_privacy_label: 'Confidentialité',
+    group_privacy_private: 'Privé <span style="color:var(--text-dim);font-weight:400">— seuls les membres voient les publications</span>',
+    group_privacy_public: 'Public <span style="color:var(--text-dim);font-weight:400">— tout le monde peut voir et rejoindre</span>',
+    post_modal_title: 'Nouvelle publication', post_placeholder: "Quoi de neuf ?"
   }
 };
 

@@ -135,7 +135,16 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if true;
       allow create: if isVerified() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isGroupAdmin(groupId) || isAdmin();
+      // BUG FIX: joining/leaving a group increments/decrements membersCount
+      // on this very document — but only a group admin could update it at
+      // all, so every join/leave threw permission-denied on that second
+      // write (the member record itself, in the /members subcollection
+      // below, was never the problem). This carve-out lets any signed-in
+      // user touch ONLY the membersCount field; anything else on the
+      // group (name, description, privacy, the linked Bluesky account,
+      // etc.) still requires admin.
+      allow update: if isGroupAdmin(groupId) || isAdmin() ||
+        (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['membersCount']));
       allow delete: if isGroupAdmin(groupId) || isAdmin();
 
       // Membership: joining yourself covers public groups and accepting an

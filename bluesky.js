@@ -249,7 +249,8 @@ async function renderBskyConnectSection() {
       </div>`;
     }
   } catch (e) {
-    container.innerHTML = '<div class="privacy-toggle-label" style="color:var(--text-dim)">Could not load connection status</div>';
+    console.error('[bsky] connection status failed:', e.code || e, e.message || '');
+    container.innerHTML = `<div class="privacy-toggle-label" style="color:var(--text-dim)">Could not load connection status${e.code ? ' (' + e.code + ')' : ''}</div>`;
   }
 }
 
