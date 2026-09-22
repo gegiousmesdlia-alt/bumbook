@@ -49,7 +49,18 @@ class FirestoreStore {
     return snap.exists ? snap.data().value : undefined;
   }
   async set(key, value) {
-    await this.coll.doc(_safeKey(key)).set({ value, updatedAt: Date.now() });
+    // The OAuth library's DPoP JWK (and possibly other fields) can contain
+    // keys explicitly set to `undefined` (e.g. an optional "kid" the
+    // library doesn't always fill in) — plain JS objects tolerate that,
+    // but Firestore's admin SDK throws outright on ANY undefined value
+    // anywhere in the document, which crashed every authorize() attempt
+    // before it could even redirect to Bluesky. Round-tripping through
+    // JSON strips undefined keys the same way JSON.stringify always has
+    // (it just omits them), which is exactly Firestore's own
+    // `ignoreUndefinedProperties` behavior — scoped to just this store
+    // instead of changing that setting project-wide.
+    const sanitized = JSON.parse(JSON.stringify(value));
+    await this.coll.doc(_safeKey(key)).set({ value: sanitized, updatedAt: Date.now() });
   }
   async del(key) {
     await this.coll.doc(_safeKey(key)).delete();
