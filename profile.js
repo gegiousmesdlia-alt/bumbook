@@ -440,6 +440,13 @@ async function acceptMsgRequest(fromUid, fromName) {
     }
     // Delete the request
     await window.XF.remove('messageRequests/' + currentUser.uid + '/' + fromUid);
+    // Mirror acceptConnection's behavior: add each other as connections so
+    // this conversation shows up in the Messages list (startMsgWatch only
+    // watches DMs for uids present in connections/{uid}) — without this,
+    // the DM message exists in Firestore but the conv list can never find
+    // it once you leave the chat.
+    await window.XF.set('connections/' + currentUser.uid + '/' + fromUid, true);
+    await window.XF.set('connections/' + fromUid + '/' + currentUser.uid, true);
     // Notify sender
     await window.XF.push('notifications/' + fromUid, {
       type: 'message_request_accepted',
