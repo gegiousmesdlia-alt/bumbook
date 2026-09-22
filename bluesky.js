@@ -285,9 +285,37 @@ async function renderBskyConnectSection() {
 }
 
 async function startBskyConnect() {
-  let handle = prompt('Your Bluesky handle (e.g. yourname.bsky.social):');
-  if (!handle) return;
-  handle = handle.trim().replace(/^@/, '');
+  const existing = document.getElementById('bskyConnectModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'bskyConnectModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:400px">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:6px">🦋 Connect Bluesky</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px">Link your Bluesky account to send real DMs from bumbook.</div>
+      <label style="font-size:0.8rem;color:var(--text-dim);display:block;margin-bottom:6px">Your Bluesky handle</label>
+      <input id="bskyConnectHandle" type="text" placeholder="yourname.bsky.social" autocomplete="off"
+        style="width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:0.9rem;outline:none;font-family:inherit;margin-bottom:6px;box-sizing:border-box" />
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px">
+        Don't have a Bluesky account? <a href="https://bsky.app" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">Sign up on Bluesky</a> first, then come back here and connect.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('bskyConnectModal').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="_submitBskyConnect()">Connect</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('bskyConnectHandle')?.focus(), 50);
+}
+
+async function _submitBskyConnect() {
+  const input = document.getElementById('bskyConnectHandle');
+  let handle = input?.value?.trim();
+  if (!handle) { showToast('Enter your Bluesky handle first'); return; }
+  handle = handle.replace(/^@/, '');
   // Bluesky handles are full domain-style identifiers — the AT Protocol's
   // handle system is literally DNS-based, so a bare username on its own
   // (no dot) was never actually valid, and is exactly what that "Value
@@ -295,6 +323,7 @@ async function startBskyConnect() {
   // domain handle, so defaulting to .bsky.social if they typed a bare
   // username covers the common case without forcing them to know this.
   if (handle && !handle.includes('.')) handle += '.bsky.social';
+  const modal = document.getElementById('bskyConnectModal');
   try {
     const idToken = await currentUser.getIdToken();
     const resp = await fetch('/api/bsky-connect-start', {
