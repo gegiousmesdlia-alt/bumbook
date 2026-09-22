@@ -339,12 +339,19 @@ async function _renderGroupPosts() {
   // that shouldn't also hide Bluesky content that loaded from a totally
   // separate service and never touched Firestore at all.
   let bskyItems = [];
-  if (_activeGroup.blueskyFeedActor && typeof fetchBlueskyProfile === 'function') {
-    try {
-      const data = await fetchBlueskyProfile(_activeGroup.blueskyFeedActor);
-      if (data.error) console.warn('[bsky] group feed fetch returned an error:', data.error, data.message || '');
-      bskyItems = (data.posts || []).map(p => ({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
-    } catch (e) { console.error('[bsky] group feed fetch threw:', e); /* Bluesky itself being unreachable — separate concern, local posts below aren't affected by this either */ }
+  const bskyAccounts = _activeGroup.blueskyFeedActors || (_activeGroup.blueskyFeedActor ? [{ did: _activeGroup.blueskyFeedActor }] : []);
+  if (bskyAccounts.length && typeof fetchBlueskyProfile === 'function') {
+    // Fetch every linked account in parallel and merge — one slow/broken
+    // account (e.g. deleted since being linked) shouldn't block the others.
+    const results = await Promise.allSettled(bskyAccounts.map(a => fetchBlueskyProfile(a.did)));
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        if (r.value.error) console.warn('[bsky] group feed fetch returned an error:', bskyAccounts[i].did, r.value.error, r.value.message || '');
+        (r.value.posts || []).forEach(p => bskyItems.push({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
+      } else {
+        console.error('[bsky] group feed fetch threw:', bskyAccounts[i].did, r.reason);
+      }
+    });
   }
 
   try {
@@ -465,28 +472,27 @@ function _renderGroupAbout() {
     <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.privacy === 'private' ? 'Private — only members can see posts. ' + (g.joinMode === 'invite' ? 'Invite-only.' : 'Anyone can request to join.') : 'Public — anyone can see posts and join.'}</div>
     <div class="sidebar-section-title" style="padding:0 0 6px">🦋 Bluesky feed</div>
     ${isAdmin ? _groupBskyAdminHTML(g) : `
-      <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${g.blueskyFeedActor ? 'Showing posts from @' + escapeHTML(g.blueskyFeedActorHandle || g.blueskyFeedActor) : 'None set.'}</div>`}
+      <div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:20px">${(g.blueskyFeedActors?.length || g.blueskyFeedActor) ? 'Showing posts from ' + (g.blueskyFeedActors || [{ handle: g.blueskyFeedActorHandle || g.blueskyFeedActor }]).map(a => '@' + escapeHTML(a.handle)).join(', ') : 'None set.'}</div>`}
     ${isAdmin ? `<button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteGroupConfirm('${g.id}')">Delete group</button>` : ''}
   </div>`;
 }
 
 function _groupBskyAdminHTML(g) {
-  if (g.blueskyFeedActor) {
-    // Already linked — show what's actually connected (avatar/name if we
-    // have it cached, otherwise just the handle) with a way to unlink.
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:8px;background:var(--bg-3);border-radius:8px">
-      <div style="flex:1;font-size:0.9rem">🦋 @${escapeHTML(g.blueskyFeedActorHandle || g.blueskyFeedActor)}</div>
-      <button class="btn btn-outline btn-sm" onclick="removeGroupBskyFeed('${g.id}')">Remove</button>
-    </div>`;
-  }
-  // Not linked — search-and-select rather than free-typing a handle. This
-  // is the actual fix for "the group feed doesn't work but tapping an
-  // account elsewhere does": both use the identical fetch underneath, but
-  // a hand-typed handle has no validation, while picking a real search
-  // result guarantees a real, resolvable account (its DID, the same
-  // reliable identifier the working profile-tap flow already uses).
+  const linked = g.blueskyFeedActors || (g.blueskyFeedActor ? [{ did: g.blueskyFeedActor, handle: g.blueskyFeedActorHandle || g.blueskyFeedActor }] : []);
+  const linkedHTML = linked.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;background:var(--bg-3);border-radius:8px">
+      <div style="flex:1;font-size:0.9rem">🦋 @${escapeHTML(a.handle)}</div>
+      <button class="btn btn-outline btn-sm" onclick="removeGroupBskyFeed('${g.id}','${escapeAttrJS(a.did)}')">Remove</button>
+    </div>`).join('');
+  // Search-and-select rather than free-typing a handle — a hand-typed
+  // handle has no validation and is the actual reason linking used to
+  // silently fail; picking a real search result guarantees a real,
+  // resolvable account (its DID), the same reliable identifier the
+  // working profile-tap flow already uses. Multiple accounts can be
+  // added — posts from all of them merge into the Posts tab together.
   return `
-    <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:8px">Search for the real Bluesky account whose posts should show in this group.</div>
+    ${linkedHTML}
+    <div style="font-size:0.82rem;color:var(--text-dim);margin:8px 0">${linked.length ? 'Add another account:' : 'Search for the real Bluesky account whose posts should show in this group.'}</div>
     <input id="groupBskySearchInput" class="form-input" placeholder="Search by name or handle…" oninput="_searchGroupBskyActor(this.value,'${g.id}')" style="margin-bottom:8px">
     <div id="groupBskySearchResults"></div>
   `;
@@ -505,12 +511,13 @@ async function _searchGroupBskyActor(query, groupId) {
       const resp = await fetch('/api/bluesky?action=searchActors&q=' + encodeURIComponent(q));
       const data = await resp.json();
       if (!data.accounts?.length) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">No accounts found</div>'; return; }
+      const linked = new Set((_activeGroup.blueskyFeedActors || []).map(a => a.did));
       results.innerHTML = data.accounts.map(a => `
-        <div class="people-card" style="padding:8px" onclick='_selectGroupBskyActor(${JSON.stringify(groupId)}, ${JSON.stringify(a.did)}, ${JSON.stringify(a.handle)})'>
+        <div class="people-card" style="padding:8px${linked.has(a.did) ? ';opacity:0.5' : ''}" ${linked.has(a.did) ? '' : `onclick='_selectGroupBskyActor(${JSON.stringify(groupId)}, ${JSON.stringify(a.did)}, ${JSON.stringify(a.handle)})'`}>
           ${(typeof _blueskyAvatarHTML === 'function') ? _blueskyAvatarHTML(a, 'sm') : ''}
           <div class="people-card-info">
             <div class="people-card-name" style="font-size:0.9rem">${escapeHTML(a.displayName)}</div>
-            <div class="people-card-handle" style="font-size:0.8rem">@${escapeHTML(a.handle)}</div>
+            <div class="people-card-handle" style="font-size:0.8rem">@${escapeHTML(a.handle)}${linked.has(a.did) ? ' · already added' : ''}</div>
           </div>
         </div>`).join('');
     } catch (e) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">Search failed</div>'; }
@@ -519,23 +526,25 @@ async function _searchGroupBskyActor(query, groupId) {
 
 async function _selectGroupBskyActor(groupId, did, handle) {
   try {
-    // Storing the DID, not the typed handle — DIDs never change even if
-    // the person later renames their handle, so this stays correct
-    // forever, unlike a hand-typed handle string would.
-    await window.XF.update('groups/' + groupId, { blueskyFeedActor: did, blueskyFeedActorHandle: handle });
-    _activeGroup.blueskyFeedActor = did;
-    _activeGroup.blueskyFeedActorHandle = handle;
-    showToast('Bluesky feed connected');
+    // Storing DIDs, not typed handles — DIDs never change even if the
+    // account later renames its handle.
+    const current = _activeGroup.blueskyFeedActors || (_activeGroup.blueskyFeedActor ? [{ did: _activeGroup.blueskyFeedActor, handle: _activeGroup.blueskyFeedActorHandle || _activeGroup.blueskyFeedActor }] : []);
+    if (current.some(a => a.did === did)) return; // already linked
+    const updated = [...current, { did, handle }];
+    await window.XF.update('groups/' + groupId, { blueskyFeedActors: updated, blueskyFeedActor: null, blueskyFeedActorHandle: null });
+    _activeGroup.blueskyFeedActors = updated;
+    showToast('Bluesky account added');
     _renderGroupAbout();
   } catch (e) { showToast('Could not save'); }
 }
 
-async function removeGroupBskyFeed(groupId) {
+async function removeGroupBskyFeed(groupId, did) {
   try {
-    await window.XF.update('groups/' + groupId, { blueskyFeedActor: null, blueskyFeedActorHandle: null });
-    _activeGroup.blueskyFeedActor = null;
-    _activeGroup.blueskyFeedActorHandle = null;
-    showToast('Bluesky feed removed');
+    const current = _activeGroup.blueskyFeedActors || (_activeGroup.blueskyFeedActor ? [{ did: _activeGroup.blueskyFeedActor, handle: _activeGroup.blueskyFeedActorHandle || _activeGroup.blueskyFeedActor }] : []);
+    const updated = current.filter(a => a.did !== did);
+    await window.XF.update('groups/' + groupId, { blueskyFeedActors: updated, blueskyFeedActor: null, blueskyFeedActorHandle: null });
+    _activeGroup.blueskyFeedActors = updated;
+    showToast('Removed');
     _renderGroupAbout();
   } catch (e) { showToast('Could not remove'); }
 }

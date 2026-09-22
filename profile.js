@@ -9,7 +9,7 @@ async function renderOwnProfile() {
   const container = $('ownProfileContent'); if (!container) return;
   const postsSnap = await window.XF.get('posts'); const posts = [];
   if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === currentUser.uid) posts.push({ id: c.key, ...p }); });
-  posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const mergedItems = await _mergeProfileBskyItems(posts, currentProfile);
   const followersVisible = !currentProfile.followersHidden;
   container.innerHTML = `
     <div class="profile-banner" style="position:relative">
@@ -54,12 +54,103 @@ async function renderOwnProfile() {
       <div class="profile-tab active" onclick="switchOwnProfileTab('posts',this)">Posts</div>
       <div class="profile-tab" onclick="switchOwnProfileTab('media',this)">Media</div>
     </div>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div class="sidebar-section-title" style="padding:0 0 6px">🦋 Bluesky feed on my profile</div>
+      <div id="ownProfileBskyAdmin">${_profileBskyAdminHTML(currentProfile, currentUser.uid)}</div>
+    </div>
     <div id="ownProfilePosts">
-      ${posts.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet — share something!</div></div>' : posts.map(p => postHTML(p, currentProfile)).join('')}
+      ${mergedItems.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet — share something!</div></div>' : mergedItems.map(item => item.html).join('')}
     </div>`;
   setTimeout(() => makeProfilePhotosClickable(container, currentProfile), 50);
   renderProfileViewers(currentUser.uid, container);
   injectBioLinkPreview('ownBioLinkPreview', currentProfile.bio);
+}
+
+/* ── Bluesky feed on a bumbook profile — same read-only, clearly-badged
+   treatment as the group version, search-and-select rather than
+   free-typing a handle (see groups.js for the reasoning: a hand-typed
+   handle has no validation and is what made an earlier version of this
+   silently fail). Stored as users/{uid}.blueskyFeedActors, an array of
+   {did, handle}, so a profile — like a group — can link more than one. */
+async function _mergeProfileBskyItems(posts, profile) {
+  const localItems = posts.map(p => ({ ts: p.createdAt || 0, html: postHTML(p, profile) }));
+  const accounts = profile?.blueskyFeedActors || [];
+  if (!accounts.length || typeof fetchBlueskyProfile !== 'function') {
+    return localItems.sort((a, b) => b.ts - a.ts);
+  }
+  const results = await Promise.allSettled(accounts.map(a => fetchBlueskyProfile(a.did)));
+  const bskyItems = [];
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && !r.value.error) {
+      (r.value.posts || []).forEach(p => bskyItems.push({ ts: p.createdAt || 0, html: blueskyPostRowHTML(p) }));
+    } else if (r.status === 'rejected') {
+      console.error('[bsky] profile feed fetch threw:', accounts[i].did, r.reason);
+    }
+  });
+  return localItems.concat(bskyItems).sort((a, b) => b.ts - a.ts);
+}
+
+function _profileBskyAdminHTML(profile, uid) {
+  const linked = profile.blueskyFeedActors || [];
+  const linkedHTML = linked.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;background:var(--bg-3);border-radius:8px">
+      <div style="flex:1;font-size:0.9rem">🦋 @${escapeHTML(a.handle)}</div>
+      <button class="btn btn-outline btn-sm" onclick="removeProfileBskyFeed('${escapeAttrJS(a.did)}')">Remove</button>
+    </div>`).join('');
+  return `
+    ${linkedHTML}
+    <div style="font-size:0.82rem;color:var(--text-dim);margin:8px 0">${linked.length ? 'Add another account:' : "Show a real Bluesky account's posts on your profile."}</div>
+    <input id="ownProfileBskySearchInput" class="form-input" placeholder="Search by name or handle…" oninput="_searchProfileBskyActor(this.value)" style="margin-bottom:8px">
+    <div id="ownProfileBskySearchResults"></div>
+  `;
+}
+
+let _profileBskySearchDebounce = null;
+async function _searchProfileBskyActor(query) {
+  clearTimeout(_profileBskySearchDebounce);
+  const q = (query || '').trim();
+  const results = $('ownProfileBskySearchResults');
+  if (!results) return;
+  if (!q) { results.innerHTML = ''; return; }
+  results.innerHTML = '<div class="loading-center" style="padding:8px"><div class="spinner"></div></div>';
+  _profileBskySearchDebounce = setTimeout(async () => {
+    try {
+      const resp = await fetch('/api/bluesky?action=searchActors&q=' + encodeURIComponent(q));
+      const data = await resp.json();
+      if (!data.accounts?.length) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">No accounts found</div>'; return; }
+      const linked = new Set((currentProfile.blueskyFeedActors || []).map(a => a.did));
+      results.innerHTML = data.accounts.map(a => `
+        <div class="people-card" style="padding:8px${linked.has(a.did) ? ';opacity:0.5' : ''}" ${linked.has(a.did) ? '' : `onclick='_selectProfileBskyActor(${JSON.stringify(a.did)}, ${JSON.stringify(a.handle)})'`}>
+          ${(typeof _blueskyAvatarHTML === 'function') ? _blueskyAvatarHTML(a, 'sm') : ''}
+          <div class="people-card-info">
+            <div class="people-card-name" style="font-size:0.9rem">${escapeHTML(a.displayName)}</div>
+            <div class="people-card-handle" style="font-size:0.8rem">@${escapeHTML(a.handle)}${linked.has(a.did) ? ' · already added' : ''}</div>
+          </div>
+        </div>`).join('');
+    } catch (e) { results.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:0.85rem">Search failed</div>'; }
+  }, 350);
+}
+
+async function _selectProfileBskyActor(did, handle) {
+  try {
+    const current = currentProfile.blueskyFeedActors || [];
+    if (current.some(a => a.did === did)) return;
+    const updated = [...current, { did, handle }];
+    await window.XF.update('users/' + currentUser.uid, { blueskyFeedActors: updated });
+    currentProfile.blueskyFeedActors = updated;
+    showToast('Bluesky account added');
+    renderOwnProfile();
+  } catch (e) { showToast('Could not save'); }
+}
+
+async function removeProfileBskyFeed(did) {
+  try {
+    const updated = (currentProfile.blueskyFeedActors || []).filter(a => a.did !== did);
+    await window.XF.update('users/' + currentUser.uid, { blueskyFeedActors: updated });
+    currentProfile.blueskyFeedActors = updated;
+    showToast('Removed');
+    renderOwnProfile();
+  } catch (e) { showToast('Could not remove'); }
 }
 
 function switchOwnProfileTab(tab, el) {
@@ -171,7 +262,7 @@ async function renderUserProfile(uid) {
     }
     const postsSnap = await window.XF.get('posts'); const posts = [];
     if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === uid) posts.push({ id: c.key, ...p }); });
-    posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const mergedItems = await _mergeProfileBskyItems(posts, profile);
     const followersHidden = profile.followersHidden && uid !== currentUser?.uid;
     container.innerHTML = `
       <div class="profile-banner">
@@ -214,7 +305,7 @@ async function renderUserProfile(uid) {
         <div class="profile-tab" onclick="switchUserProfileTab('media',this)">Media</div>
       </div>
       <div id="userProfilePosts">
-        ${posts.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet</div></div>' : posts.map(p => postHTML(p, profile)).join('')}
+        ${mergedItems.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet</div></div>' : mergedItems.map(item => item.html).join('')}
       </div>`;
     recordProfileView(uid);
     setTimeout(() => makeProfilePhotosClickable(container, profile), 50);
@@ -405,7 +496,13 @@ function _switchMsgTab(tab) {
 async function recordProfileView(profileUid) {
   if (!currentUser || profileUid === currentUser.uid) return;
   try {
-    await window.XF.set('profileViews/' + profileUid + '/' + currentUser.uid, { uid: currentUser.uid, displayName: currentProfile?.displayName || 'Member', handle: currentProfile?.handle || 'member', photoURL: currentProfile?.photoURL || '', viewedAt: window.XF.ts() });
+    // Date.now() here, not window.XF.ts() (a Firestore server-timestamp
+    // sentinel) — every other timestamp in this app (post createdAt, etc.)
+    // is a plain millisecond number, and timeAgo() expects that. A
+    // server-timestamp reads back as a Firestore Timestamp OBJECT, and
+    // doing date math on that object instead of a number is exactly what
+    // produced the "19978d" nonsense in the viewers panel.
+    await window.XF.set('profileViews/' + profileUid + '/' + currentUser.uid, { uid: currentUser.uid, displayName: currentProfile?.displayName || 'Member', handle: currentProfile?.handle || 'member', photoURL: currentProfile?.photoURL || '', viewedAt: Date.now() });
   } catch (e) {}
 }
 

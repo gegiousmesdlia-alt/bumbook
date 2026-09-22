@@ -10,6 +10,7 @@ let _feedOldestTs = null;
 let _feedLoading = false;
 let _feedExhausted = false;
 let _feedFullyDone = false; // local posts exhausted AND Bluesky came up empty on the last try
+let _feedRetriedEmpty = false; // guards the one-time retry-before-empty-state logic in _loadFeedPage
 let _feedScrollHandler = null;
 let _seenPostIds = new Set();     // loaded once per feed session from users/{uid}.seenPostIds
 let _seenPostsPending = [];       // newly-seen ids waiting to be flushed to Firestore
@@ -28,7 +29,7 @@ function _teardownFeed() {
   }
   if (_feedObserver) { _feedObserver.disconnect(); _feedObserver = null; }
   _flushSeenPosts(); // don't lose the last few seconds of "seen" progress when navigating away
-  _feedOldestTs = null; _feedLoading = false; _feedExhausted = false; _feedFullyDone = false;
+  _feedOldestTs = null; _feedLoading = false; _feedExhausted = false; _feedFullyDone = false; _feedRetriedEmpty = false;
 }
 
 /* ── "Don't resurface posts I've already scrolled past" (like Facebook) ─
@@ -283,10 +284,24 @@ async function _loadFeedPage(container, isFirst) {
     if (_feedExhausted && blueskyFailed) _feedFullyDone = true;
 
     const mergedItems = localItems.concat(blueskyItems).sort((a, b) => b.ts - a.ts);
+    // Retry once before concluding "nothing here" — a genuinely-empty
+    // platform is rare; a transient blip (cold server start, Bluesky's
+    // API being briefly slow, auth not 100% settled yet on first load)
+    // coming back empty on the very first attempt is far more likely, and
+    // exactly matches "shows empty, but a manual refresh shows content" —
+    // a manual reload just gives everything those extra couple seconds to
+    // settle that this retry now gives it automatically instead.
+    if (isFirst && mergedItems.length === 0 && !_feedRetriedEmpty) {
+      _feedRetriedEmpty = true;
+      await new Promise(r => setTimeout(r, 1200));
+      _feedLoading = false;
+      return _loadFeedPage(container, true);
+    }
     if (isFirst && mergedItems.length === 0) {
       container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">◪</div><div class="empty-state-title">${t('feed_empty_title')}</div><div class="empty-state-desc">${t('feed_empty_desc')}</div></div>`;
       _feedLoading = false; return;
     }
+    _feedRetriedEmpty = false;
     const postHTMLs = mergedItems.map(item => item.html);
 
     // "For You" tray — a horizontal row of reel thumbnails above the feed,

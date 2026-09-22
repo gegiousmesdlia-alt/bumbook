@@ -73,7 +73,7 @@ class FakeSnapshot {
      notifications/{uid}[/{id}]    -> users/{uid}/notifications[/{id}]
      profileViews/{uid}[/{id}]     -> users/{uid}/profileViews[/{id}]
    ═══════════════════════════════════════════════════════════════════════ */
-const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests', 'groups', 'reels']);
+const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests', 'groups', 'reels', 'bskyConnections']);
 const FIXED_DOC_ROOTS = { appConfig: 'appConfig', config: 'config' }; // -> settings/{fixedDocId}
 const SUB_ROOTS = {
   comments:        { parentColl: 'posts', sub: 'comments' },
