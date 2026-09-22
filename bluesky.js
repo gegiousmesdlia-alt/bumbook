@@ -285,8 +285,16 @@ async function renderBskyConnectSection() {
 }
 
 async function startBskyConnect() {
-  const handle = prompt('Your Bluesky handle (e.g. yourname.bsky.social):');
+  let handle = prompt('Your Bluesky handle (e.g. yourname.bsky.social):');
   if (!handle) return;
+  handle = handle.trim().replace(/^@/, '');
+  // Bluesky handles are full domain-style identifiers — the AT Protocol's
+  // handle system is literally DNS-based, so a bare username on its own
+  // (no dot) was never actually valid, and is exactly what that "Value
+  // for actor must be..." error meant. Most people don't have a custom
+  // domain handle, so defaulting to .bsky.social if they typed a bare
+  // username covers the common case without forcing them to know this.
+  if (handle && !handle.includes('.')) handle += '.bsky.social';
   try {
     const idToken = await currentUser.getIdToken();
     const resp = await fetch('/api/bsky-connect-start', {

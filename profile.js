@@ -54,10 +54,6 @@ async function renderOwnProfile() {
       <div class="profile-tab active" onclick="switchOwnProfileTab('posts',this)">Posts</div>
       <div class="profile-tab" onclick="switchOwnProfileTab('media',this)">Media</div>
     </div>
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
-      <div class="sidebar-section-title" style="padding:0 0 6px">🦋 Bluesky feed on my profile</div>
-      <div id="ownProfileBskyAdmin">${_profileBskyAdminHTML(currentProfile, currentUser.uid)}</div>
-    </div>
     <div id="ownProfilePosts">
       ${mergedItems.length === 0 ? '<div class="empty-state"><div class="empty-state-desc">No posts yet — share something!</div></div>' : mergedItems.map(item => item.html).join('')}
     </div>`;
@@ -105,6 +101,12 @@ function _profileBskyAdminHTML(profile, uid) {
   `;
 }
 
+async function renderProfileBskySettingsSection() {
+  const container = $('settingsProfileBskySection');
+  if (!container || !currentUser || !currentProfile) return;
+  container.innerHTML = _profileBskyAdminHTML(currentProfile, currentUser.uid);
+}
+
 let _profileBskySearchDebounce = null;
 async function _searchProfileBskyActor(query) {
   clearTimeout(_profileBskySearchDebounce);
@@ -139,7 +141,7 @@ async function _selectProfileBskyActor(did, handle) {
     await window.XF.update('users/' + currentUser.uid, { blueskyFeedActors: updated });
     currentProfile.blueskyFeedActors = updated;
     showToast('Bluesky account added');
-    renderOwnProfile();
+    renderProfileBskySettingsSection();
   } catch (e) { showToast('Could not save'); }
 }
 
@@ -149,7 +151,7 @@ async function removeProfileBskyFeed(did) {
     await window.XF.update('users/' + currentUser.uid, { blueskyFeedActors: updated });
     currentProfile.blueskyFeedActors = updated;
     showToast('Removed');
-    renderOwnProfile();
+    renderProfileBskySettingsSection();
   } catch (e) { showToast('Could not remove'); }
 }
 

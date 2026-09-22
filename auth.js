@@ -211,6 +211,7 @@ function onPageActivated(page, opts = {}) {
     if (page === 'settings') {
       syncThemeSettingsUI();
       if (typeof renderBskyConnectSection === 'function') renderBskyConnectSection();
+      if (typeof renderProfileBskySettingsSection === 'function') renderProfileBskySettingsSection();
       const langSelect = $('settingsLangSelect');
       if (langSelect) { try { langSelect.value = localStorage.getItem('bumbook_lang') || 'auto'; } catch (e) {} }
       const bskyConnected = new URLSearchParams(window.location.search).get('bskyConnected');
