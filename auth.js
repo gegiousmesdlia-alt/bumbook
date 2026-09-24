@@ -49,6 +49,56 @@ async function handleGoogleAuth() {
   } catch (err) { console.error('[google auth]', err); showToast(friendlyError(err.code)); }
 }
 
+/* "Continue with Bluesky" — asks for a handle, then redirects to
+   Bluesky's own login/consent page (same OAuth mechanics as Settings'
+   "Connect Bluesky", but via bsky-login-start.js instead of
+   bsky-connect-start.js, and with no bumbook session required — see
+   that file's header and bsky-oauth-callback.js for how the two are
+   told apart on the way back). */
+function handleBskyAuth() {
+  const existing = document.getElementById('bskyLoginModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'bskyLoginModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:400px">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:6px">🦋 Continue with Bluesky</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px">Sign in (or create a bumbook account) using an existing Bluesky account.</div>
+      <input id="bskyLoginHandle" type="text" placeholder="yourname.bsky.social" autocomplete="off"
+        style="width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:0.9rem;outline:none;font-family:inherit;margin-bottom:6px;box-sizing:border-box" />
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:14px">
+        Don't have a Bluesky account? <a href="https://bsky.app" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">Sign up on Bluesky</a> first, then come back here.
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('bskyLoginModal').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="_submitBskyLogin()">Continue</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('bskyLoginHandle')?.focus(), 50);
+}
+
+async function _submitBskyLogin() {
+  const input = document.getElementById('bskyLoginHandle');
+  let handle = input?.value?.trim();
+  if (!handle) { showToast('Enter your Bluesky handle first'); return; }
+  handle = handle.replace(/^@/, '');
+  if (handle && !handle.includes('.')) handle += '.bsky.social';
+  try {
+    const resp = await fetch('/api/bsky-login-start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, // no Authorization — no session exists yet
+      body: JSON.stringify({ handle })
+    });
+    const data = await resp.json();
+    if (data.url) { window.location.href = data.url; return; }
+    showToast('Could not start Bluesky sign-in: ' + (data.message || data.error || 'unknown error'));
+  } catch (e) { showToast('Could not start Bluesky sign-in'); }
+}
+
 async function handleLogout() {
   try { sessionStorage.clear(); } catch (e) {}
   await window.XF.signOut(); window.location.href = "/index.html";
@@ -76,9 +126,10 @@ function friendlyError(code) {
 async function onAuthChange(user) {
   currentUser = user;
   const loc = (typeof pageFromLocation === 'function' && pageFromLocation()) || null;
-  // admin.html is a separate, non-SPA document and sets window.__PAGE__
-  // inline before boot.js runs; the merged SPA shell doesn't, and is
-  // routed from the URL instead.
+  // The standalone admin app (admin-app/index.html, a separate deployment
+  // as of this pass) is a separate, non-SPA document and sets
+  // window.__PAGE__ inline before boot.js runs; this merged SPA shell
+  // doesn't, and is routed from the URL instead.
   const page = window.__PAGE__ || (loc ? loc.name : 'landing');
   const opts = loc ? loc.opts : {};
   window.__PAGE__ = page;

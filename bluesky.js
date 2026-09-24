@@ -338,13 +338,26 @@ async function _submitBskyConnect() {
 }
 
 async function disconnectBsky() {
-  // NOTE: this only removes bumbook's OWN record/session for this
-  // account — it does not revoke the grant on Bluesky's side. A more
-  // complete disconnect would also call the OAuth client's revoke, which
-  // isn't wired up yet in this first pass (see bsky-connect-start.js's
-  // header for the staged build plan).
   if (!confirm('Disconnect your Bluesky account from bumbook?')) return;
-  try { await window.XF.remove('bskyConnections/' + currentUser.uid); } catch (e) {}
+  try {
+    const idToken = await currentUser.getIdToken();
+    const resp = await fetch('/api/bsky-disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken }
+    });
+    const data = await resp.json();
+    if (data.error) {
+      // Falls back to at least clearing bumbook's own record even if the
+      // server-side revoke itself failed, so the person isn't stuck
+      // showing as "connected" with no way out — see bsky-disconnect.js's
+      // own best-effort fallback for why revoke specifically can fail.
+      console.error('[bsky] disconnect endpoint reported an error, clearing local record anyway:', data.message || data.error);
+      await window.XF.remove('bskyConnections/' + currentUser.uid).catch(() => {});
+    }
+  } catch (e) {
+    console.error('[bsky] disconnect request failed, clearing local record anyway:', e.message || e);
+    await window.XF.remove('bskyConnections/' + currentUser.uid).catch(() => {});
+  }
   renderBskyConnectSection();
 }
 

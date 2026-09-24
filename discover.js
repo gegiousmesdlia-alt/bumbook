@@ -329,6 +329,61 @@ async function blockUser(uid, displayName) {
   } catch (e) { showToast('Could not block user'); }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * REPORT — writes to a top-level `reports` collection for admin review
+ * (readable only by admins — see firestore.rules). Separate from
+ * block/blocks: reporting doesn't remove the connection or hide the
+ * person, it just flags them for a human to look at, same as blockUser
+ * above and sendMessageRequest's modal further up this file.
+ * ═══════════════════════════════════════════════════════════════════════ */
+function reportUser(uid, displayName) {
+  if (!currentUser || uid === currentUser.uid) return;
+  const existing = document.getElementById('reportUserModal');
+  if (existing) existing.remove();
+
+  const REASONS = ['Harassment or abuse', 'Spam or scam', 'Fake profile', 'Inappropriate content', 'Other'];
+
+  const modal = document.createElement('div');
+  modal.id = 'reportUserModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:400px">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:6px">⚑ Report ${escapeHTML(displayName || 'this user')}</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px">Reports are reviewed by admins. This doesn't block or notify them.</div>
+      <select id="reportUserReason" style="width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:0.9rem;outline:none;font-family:inherit;margin-bottom:10px;box-sizing:border-box">
+        ${REASONS.map(r => `<option value="${escapeHTML(r)}">${escapeHTML(r)}</option>`).join('')}
+      </select>
+      <textarea id="reportUserDetails" placeholder="Any additional details (optional)…" rows="3"
+        style="width:100%;background:var(--bg-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-size:0.9rem;resize:none;outline:none;font-family:inherit;box-sizing:border-box"></textarea>
+      <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('reportUserModal').remove()">Cancel</button>
+        <button class="btn btn-primary btn-sm" style="background:var(--danger);border-color:var(--danger)" onclick="_submitReportUser('${uid}','${escapeHTML(displayName || 'Member')}')">Submit Report</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+async function _submitReportUser(uid, displayName) {
+  const reason  = document.getElementById('reportUserReason')?.value || 'Other';
+  const details = document.getElementById('reportUserDetails')?.value?.trim() || '';
+  const modal = document.getElementById('reportUserModal');
+  try {
+    await window.XF.push('reports', {
+      reportedUid: uid,
+      reportedName: displayName || '',
+      reporterUid: currentUser.uid,
+      reporterName: currentProfile?.displayName || 'Member',
+      reason,
+      details: details.slice(0, 500),
+      createdAt: Date.now(),
+      status: 'open'
+    });
+    showToast('Report submitted — thanks for letting us know');
+    if (modal) modal.remove();
+  } catch (e) { showToast('Could not submit report'); }
+}
+
 async function unblockUser(uid, displayName) {
   if (!currentUser) return;
   try { await window.XF.remove('blocks/' + currentUser.uid + '/' + uid); showToast(displayName + ' unblocked'); }

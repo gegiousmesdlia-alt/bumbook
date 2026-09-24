@@ -300,29 +300,42 @@ function startNotifWatch() {
 /* ═══════════════════════════════════════════════════════════════════════════
    MESSAGE BADGE + CONV LIST
    ─────────────────────────────────────────────────────────────────────────
-   Same pattern: one in-memory map per conversation.
-   _convCache: uid → { profile, msgs: Map(msgId→msg) }
+   _convCache: uid → { profile, unread (number, mine), lastMessage }
 
-   Listeners:
-   - One 'value' on `connections/{uid}` to know who we talk to
-   - Per-conv child_added / child_changed on `dms/{convId}`
-   - Per-conv child_added on `users/{uid}` (profile changes — rare)
+   Unread count and last-message preview now come from a maintained
+   conversations/{convId} doc (unread.{uid} incremented atomically on
+   send in messages.js's _dmNotifyRecipient, reset to 0 on _markRead) —
+   NOT from scanning message history. Previously this whole section
+   worked by attaching a full onChild('child_added') listener per
+   conversation, which replays and re-reads EVERY message ever sent in
+   that conversation, for every connection, every time anyone opens the
+   app or connections change at all. That's what was driving Firestore
+   read-quota usage sky high on completely ordinary days. Now each
+   conversation costs exactly ONE cheap document listener (conversations/
+   {convId}) plus a bounded onNewSince listener that only reads messages
+   created after attach time — used purely to trigger the in-app popup
+   toast, never to rebuild history.
 
-   Conv list is rebuilt synchronously from _convCache.
-   Badge is computed from _convCache.
+   Trade-off worth knowing: because we no longer keep full message
+   history in memory here, a read receipt on an OLD message (one sent
+   before this session's watch started) won't live-update the badge/list
+   the instant the other person reads it — the badge is still accurate
+   (it's driven by the maintained counter, not by scanning readBy), this
+   only affects a live "seen" indicator on old messages, which this list
+   view never rendered anyway.
+
+   Listeners per connection:
+   - One doc listener on `conversations/{convId}` (unread + lastMessage)
+   - One bounded onNewSince listener on `dms/{convId}` (popups only)
+   Plus one list listener on `connections/{uid}` to know who to watch.
 ═══════════════════════════════════════════════════════════════════════════ */
-let _convCache    = new Map(); // uid → { profile, msgs: Map }
-let _msgWatchers  = [];        // unsub functions for per-conv listeners
+let _convCache    = new Map(); // uid → { profile, unread, lastMessage }
+let _msgWatchers  = new Map(); // uid → unsub function, so we can diff instead of full teardown
 let _convListenerReady = false;
 
 function _computeMsgBadge() {
   let total = 0;
-  _convCache.forEach(({ msgs }) => {
-    msgs.forEach(m => {
-      if (m.senderUid !== currentUser.uid && (!m.readBy || !m.readBy[currentUser.uid]))
-        total++;
-    });
-  });
+  _convCache.forEach(({ unread }) => { total += (unread || 0); });
   _setBadge('msg', total);
 }
 
@@ -339,22 +352,10 @@ function _rebuildConvUI() {
     return;
   }
 
-  // Build summary per uid
   const rows = [];
-  _convCache.forEach(({ profile, msgs }, uid) => {
+  _convCache.forEach(({ profile, unread, lastMessage }, uid) => {
     if (!profile) return;
-    const allMsgs = [...msgs.values()].sort((a, b) => (a.createdAt||0) - (b.createdAt||0));
-    const latest  = allMsgs[allMsgs.length - 1] || null;
-    const unread  = allMsgs.filter(m =>
-      m.senderUid !== currentUser.uid && (!m.readBy || !m.readBy[currentUser.uid])
-    ).length;
-    if (unread > 0 && latest && latest.senderUid === currentUser.uid) {
-      console.warn('[unread] conv shows unread but latest message is mine — investigate:', {
-        convUid: uid, unreadCount: unread, latestMsg: latest,
-        allMsgsSenders: allMsgs.map(m => ({ id: m.id, senderUid: m.senderUid, mine: m.senderUid === currentUser.uid, readBy: m.readBy }))
-      });
-    }
-    rows.push({ uid, profile, latest, unread, ts: latest?.createdAt || 0 });
+    rows.push({ uid, profile, latest: lastMessage || null, unread: unread || 0, ts: lastMessage?.createdAt || 0 });
   });
 
   // Sort: unread first, then newest
@@ -408,10 +409,9 @@ function refreshMsgBadge() { _computeMsgBadge(); }
 
 /* ── Attach per-conversation listeners ──────────────────────────────────── */
 function _watchConv(uid) {
-  const convId  = [currentUser.uid, uid].sort().join('_');
-  const dmPath  = 'dms/' + convId;
+  const convId = [currentUser.uid, uid].sort().join('_');
 
-  if (!_convCache.has(uid)) _convCache.set(uid, { profile: null, msgs: new Map() });
+  if (!_convCache.has(uid)) _convCache.set(uid, { profile: null, unread: 0, lastMessage: null });
 
   // Load profile once
   window.XF.get('users/' + uid).then(s => {
@@ -419,66 +419,60 @@ function _watchConv(uid) {
     _rebuildConvUI();
   }).catch(() => {});
 
-  // Timestamp guard: child_added replays all existing children on attach.
-  // We want ALL of them for the initial load (that's correct — we need history
-  // for preview + unread count). We only skip the popup for old ones.
+  // ONE cheap document listener — unread count + last-message preview,
+  // maintained by the sender on every send (see messages.js's
+  // _dmNotifyRecipient) rather than computed here by reading history.
+  const offMeta = window.XF.on('conversations/' + convId, snap => {
+    const meta = snap.val() || {};
+    const entry = _convCache.get(uid);
+    if (!entry) return;
+    entry.unread = (meta.unread && meta.unread[currentUser.uid]) || 0;
+    entry.lastMessage = meta.lastMessage || null;
+    _computeMsgBadge();
+    if (activePage === 'messages' && $('messagesListView')?.style.display !== 'none')
+      _rebuildConvUI();
+  });
+
+  // Bounded: only ever reads messages created from this moment forward —
+  // used solely to trigger the in-app popup toast for a genuinely new
+  // incoming message, never to populate history or the badge (the doc
+  // listener above already handles both of those, far more cheaply).
   const watchStarted = Date.now();
-
-  const onAdded = async snap => {
+  const offAdded = window.XF.onNewSince('dms/' + convId, watchStarted, async snap => {
     const m = snap.val(); if (!m) return;
-    _convCache.get(uid)?.msgs.set(snap.key, { id: snap.key, ...m });
-    _computeMsgBadge();
-    if (activePage === 'messages' && $('messagesListView')?.style.display !== 'none')
-      _rebuildConvUI();
+    if (activeConvUid === uid || m.senderUid === currentUser.uid) return;
+    try {
+      const ps = await window.XF.get('users/' + uid);
+      const prof = ps.exists() ? ps.val() : { displayName: 'New message' };
+      showMsgPopup(uid, prof, (m.imageUrl || m.imageUrls) ? 'Photo' : (m.text || ''));
+    } catch (_) {}
+  });
 
-    // Popup only for genuinely new incoming messages
-    const isNew = (m.createdAt || 0) >= watchStarted;
-    if (isNew && activeConvUid !== uid && m.senderUid !== currentUser.uid &&
-        (!m.readBy || !m.readBy[currentUser.uid])) {
-      try {
-        const ps = await window.XF.get('users/' + uid);
-        const prof = ps.exists() ? ps.val() : { displayName: 'New message' };
-        showMsgPopup(uid, prof, (m.imageUrl || m.imageUrls) ? 'Photo' : (m.text || ''));
-      } catch (_) {}
-    }
-  };
-
-  const onChanged = snap => {
-    const m = snap.val(); if (!m) return;
-    _convCache.get(uid)?.msgs.set(snap.key, { id: snap.key, ...m });
-    _computeMsgBadge();
-    if (activePage === 'messages' && $('messagesListView')?.style.display !== 'none')
-      _rebuildConvUI();
-  };
-
-  const offAdded   = window.XF.onChild(dmPath, 'child_added',   onAdded);
-  const offChanged = window.XF.onChild(dmPath, 'child_changed', onChanged);
-  _msgWatchers.push(() => { offAdded(); offChanged(); });
+  _msgWatchers.set(uid, () => { offMeta(); offAdded(); });
 }
 
 /* ── Start message watcher — called once on login ───────────────────────── */
 async function startMsgWatch() {
   if (!currentUser) return;
 
-  // Watch connections list — re-wire conv listeners if connections change
+  // Watch connections list — diff added/removed uids and only (re)wire
+  // the conversations that actually changed, instead of tearing down and
+  // rebuilding every single conversation's listeners on any change at
+  // all (previously: accepting ONE new connection re-read the full
+  // history of every OTHER conversation too).
   window.XF.on('connections/' + currentUser.uid, connSnap => {
-    // Tear down old per-conv watchers
-    _msgWatchers.forEach(off => { try { off(); } catch (_) {} });
-    _msgWatchers = [];
-    _convCache.clear();
+    const nextUids = connSnap.exists() ? new Set(Object.keys(connSnap.val())) : new Set();
 
-    if (!connSnap.exists()) {
-      _convListenerReady = true;
-      _setBadge('msg', 0);
-      _rebuildConvUI();
-      return;
-    }
-
-    const uids = Object.keys(connSnap.val());
-    uids.forEach(uid => _watchConv(uid));
+    // Remove watchers for connections that no longer exist
+    _msgWatchers.forEach((off, uid) => {
+      if (!nextUids.has(uid)) { try { off(); } catch (_) {} _msgWatchers.delete(uid); _convCache.delete(uid); }
+    });
+    // Add watchers for newly-appeared connections only
+    nextUids.forEach(uid => { if (!_msgWatchers.has(uid)) _watchConv(uid); });
 
     _convListenerReady = true;
-    // UI will refresh as each conv's child_added fires (they're nearly instant)
+    if (nextUids.size === 0) { _setBadge('msg', 0); _rebuildConvUI(); }
+    // UI will refresh as each conv's meta doc listener fires (near-instant)
   });
 }
 

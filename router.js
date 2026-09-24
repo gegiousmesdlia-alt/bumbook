@@ -5,9 +5,13 @@
 // right view.
 'use strict';
 
-// ⚠️ Once the separate admin app is deployed (a future pass), point this
-// at its real URL. Until then, admin.html still lives in this same app.
-const ADMIN_APP_URL = '/admin.html';
+// ⚠️ Swap this for your REAL admin-app deployment domain the moment you
+// know it (shown in Vercel once you create that project — see the admin
+// separation setup notes). Also update MAIN_APP_URL at the top of
+// admin-app/admin.js to point back the other way, and APP_URL in
+// api/bsky-oauth-callback.js / api/bsky-connect-start.js if the admin
+// domain and main domain ever diverge from what those already assume.
+const ADMIN_APP_URL = 'https://bumbook-admin.vercel.app';
 
 const PAGE_ROUTES = {
   landing:        '/',

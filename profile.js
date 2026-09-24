@@ -290,6 +290,7 @@ async function renderUserProfile(uid) {
               ${t('btn_share')}
             </button>
             ${currentUser && uid !== currentUser.uid ? `<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="blockUser('${uid}','${escapeHTML(profile.displayName || 'Member')}')">🚫 Block</button>` : ''}
+            ${currentUser && uid !== currentUser.uid ? `<button class="btn btn-outline btn-sm" onclick="reportUser('${uid}','${escapeHTML(profile.displayName || 'Member')}')">⚑ Report</button>` : ''}
           </div>
         </div>
         <div class="profile-name">${escapeHTML(profile.displayName || 'Member')}${verifiedBadge(profile.verified, true)}</div>
@@ -368,6 +369,7 @@ async function _submitMsgRequest(toUid, toName) {
       fromPhoto: currentProfile?.photoURL || '',
       text,
       createdAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days — see api/cleanup-expired-requests.js
       read: false
     });
     // Notify recipient
@@ -437,6 +439,12 @@ async function acceptMsgRequest(fromUid, fromName) {
         createdAt: req.createdAt || Date.now(),
         readBy: {}
       });
+      // Seed the conv-list preview (see notifications.js's _watchConv) —
+      // no unread increment for currentUser here, since accepting IS
+      // having already seen this text.
+      await window.XF.update('conversations/' + convId, {
+        lastMessage: { text: req.text, senderUid: fromUid, createdAt: req.createdAt || Date.now() }
+      }).catch(() => {});
     }
     // Delete the request
     await window.XF.remove('messageRequests/' + currentUser.uid + '/' + fromUid);

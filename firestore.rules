@@ -165,6 +165,31 @@ service cloud.firestore {
       }
     }
 
+    /* ── conversations/{convId} ── the parent doc itself (separate from
+       its messages/ subcollection below). Holds ONLY a maintained
+       summary — { unread: {uid: n}, lastMessage: {...} } — that the
+       conversation list reads instead of scanning every message; see
+       notifications.js's _watchConv and messages.js's _dmNotifyRecipient
+       header comments for why. Same trust model as messages/ updates
+       below: either participant can write any field here (needed since
+       the SENDER writes the RECIPIENT's unread count, not their own) —
+       this only affects the two people already in a private
+       conversation together, not anyone else. ───────────────────────── */
+    /* ── reports/{reportId} ── user-filed reports, admin review only.
+       Anyone signed in can file one about anyone (including someone
+       they're not connected to — that's the point of reporting); only
+       admins can read the list or change status. reportUser() in
+       discover.js is the only writer. ─────────────────────────────── */
+    match /reports/{reportId} {
+      allow create: if signedIn() && request.resource.data.reporterUid == request.auth.uid;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /conversations/{convId} {
+      allow read: if isAdmin() || (signedIn() && convId.split('_').hasAny([request.auth.uid]));
+      allow create, update: if signedIn() && convId.split('_').hasAny([request.auth.uid]);
+    }
+
     /* ── conversations/{convId}/messages/{msgId} ── DMs.
        convId is "<uidA>_<uidB>" sorted — only the two participants
        may access it. ─────────────────────────────────────────────── */
@@ -172,7 +197,19 @@ service cloud.firestore {
       allow read: if signedIn() && convId.split('_').hasAny([request.auth.uid]);
       allow create: if signedIn() &&
         convId.split('_').hasAny([request.auth.uid]) &&
-        request.resource.data.senderUid == request.auth.uid;
+        (
+          request.resource.data.senderUid == request.auth.uid ||
+          // Accepting a message request seeds the sender's original text as
+          // the first DM message — written by the RECIPIENT (acceptor), not
+          // the sender, so senderUid != request.auth.uid here. Only allow
+          // this when the acceptor still has a pending request from that
+          // exact sender at write time (acceptMsgRequest deletes it right
+          // after), so this can't be used to spoof messages otherwise.
+          (
+            request.resource.data.senderUid != request.auth.uid &&
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)/messageRequests/$(request.resource.data.senderUid))
+          )
+        );
       // Updates cover read receipts / delivery flags / reactions from
       // EITHER participant, and deletes are sender or admin only.
       allow update: if signedIn() && convId.split('_').hasAny([request.auth.uid]);
@@ -239,7 +276,7 @@ service cloud.firestore {
     match /bskyConnections/{uid} {
       allow read: if isSelf(uid) || isAdmin();
       allow create, update: if false; // only the server (OAuth callback) writes this
-      allow delete: if isSelf(uid) || isAdmin(); // "Disconnect" button removes bumbook's own lookup doc — the actual tokens in bskyOAuthSessions are untouched by this and need a real revoke, not yet wired up
+      allow delete: if isSelf(uid) || isAdmin(); // "Disconnect" button — primary path is server-side via bsky-disconnect.js (revokes the grant on Bluesky's side, then deletes this doc via Admin SDK, bypassing this rule entirely); this rule only matters for the client-side fallback delete if that server call itself fails
     }
   }
 }

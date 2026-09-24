@@ -40,6 +40,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.XFire._reattach && window.XFire._reattach();
     }
 
+    // "Continue with Bluesky" hands off here: bsky-oauth-callback.js
+    // can't sign the browser in directly (it's a server-side redirect
+    // responding to Bluesky, with no access to this tab's Firebase SDK
+    // instance) — instead it mints a short-lived custom token and
+    // appends it to the URL it redirects back to. Pick that up here,
+    // exactly once, before anything else needs auth state.
+    const _bskyToken = new URLSearchParams(window.location.search).get('bskyLoginToken');
+    if (_bskyToken) {
+      // Strip it from the URL immediately regardless of outcome — it's
+      // single-use and shouldn't linger in browser history/address bar.
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, '', cleanUrl);
+      try { await firebase.auth().signInWithCustomToken(_bskyToken); }
+      catch (err) { console.error('[bsky login] signInWithCustomToken failed:', err); showToast('Bluesky sign-in failed — please try again'); }
+    }
+
     // Track the auth state we last acted on, so we only skip TRUE duplicate
     // firings (e.g. a token refresh with the same user) — not the very real
     // transition from "not signed in" to "just signed in", which is exactly

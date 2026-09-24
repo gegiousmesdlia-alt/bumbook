@@ -522,10 +522,12 @@ async function _markRead(convId) {
       if (m.senderUid !== currentUser.uid && (!m.readBy || !m.readBy[currentUser.uid]))
         updates['dms/' + convId + '/' + key + '/readBy/' + currentUser.uid] = true;
     });
-    if (Object.keys(updates).length) {
-      await window.XF.multiUpdate(updates);
-      refreshMsgBadge();
-    }
+    if (Object.keys(updates).length) await window.XF.multiUpdate(updates);
+    // Zero the maintained counter notifications.js's conv list reads —
+    // separate from the per-message readBy fan-out above, which still
+    // matters for the "seen" indicator inside an open chat.
+    await window.XF.set('conversations/' + convId + '/unread/' + currentUser.uid, 0);
+    refreshMsgBadge();
   } catch(e) {}
 }
 
@@ -658,6 +660,19 @@ async function dmSendPendingImages(uid) {
    NOTIFY RECIPIENT
 ═══════════════════════════════════════════════════════════════════════════ */
 async function _dmNotifyRecipient(toUid, preview) {
+  const cid = [currentUser.uid, toUid].sort().join('_');
+  try {
+    // Maintains the conv-list summary (unread badge + last-message
+    // preview) that notifications.js's _watchConv now reads instead of
+    // scanning full message history — see that file's header comment
+    // for why. increment() is atomic, so two people messaging each
+    // other in quick succession can't race and drop a count.
+    await window.XF.update('conversations/' + cid, {
+      lastMessage: { text: (preview || '').slice(0, 80), senderUid: currentUser.uid, createdAt: Date.now() }
+    });
+    await window.XF.increment('conversations/' + cid + '/unread/' + toUid, 1);
+  } catch (e) {}
+
   try {
     await window.XF.push('notifications/' + toUid, {
       type: 'new_message',

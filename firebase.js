@@ -73,7 +73,7 @@ class FakeSnapshot {
      notifications/{uid}[/{id}]    -> users/{uid}/notifications[/{id}]
      profileViews/{uid}[/{id}]     -> users/{uid}/profileViews[/{id}]
    ═══════════════════════════════════════════════════════════════════════ */
-const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests', 'groups', 'reels', 'bskyConnections']);
+const SIMPLE_ROOTS = new Set(['users', 'posts', 'handles', 'scheduledPosts', 'connectionRequests', 'pushSubscriptions', 'scheduledPushes', 'verificationRequests', 'groups', 'reels', 'bskyConnections', 'conversations', 'reports']);
 const FIXED_DOC_ROOTS = { appConfig: 'appConfig', config: 'config' }; // -> settings/{fixedDocId}
 const SUB_ROOTS = {
   comments:        { parentColl: 'posts', sub: 'comments' },
@@ -260,6 +260,16 @@ async function loadFirebase() {
       return Promise.all(qs.docs.map(d => d.ref.delete()));
     },
 
+    // Atomic +1/-1 on a numeric field (e.g. a per-user unread counter) —
+    // safe against concurrent senders in a way read-then-write never is,
+    // and (unlike a full message-history read) costs exactly one document
+    // read/write regardless of how many messages exist.
+    async increment(path, amount = 1) {
+      const r = _resolve(path);
+      if (!r || r.kind !== 'field') throw new Error(`[XF] increment requires a field path: ${path}`);
+      return r.fsRef.set(_setNested({}, r.fieldPath, firebase.firestore.FieldValue.increment(amount)), { merge: true });
+    },
+
     // Multi-path atomic-ish update (used for DM readBy/deliveredTo fan-out).
     async multiUpdate(updates) {
       const byDoc = new Map(); // fsRef -> nested object to merge
@@ -322,6 +332,28 @@ async function loadFirebase() {
       const unsub = () => { unsubList(); _listeners.delete(key); };
       _listeners.set(key, unsub);
       return unsub;
+    },
+
+    // Bounded live listener: only ever reads documents whose `createdAt`
+    // is AFTER sinceTs (typically "now", at attach time) — deliberately
+    // does NOT replay existing history the way onChild's child_added
+    // does. Firestore's own billing means the initial snapshot here costs
+    // ~0 reads (nothing matches yet) and each later fire costs exactly
+    // 1 read per genuinely new document, instead of onChild's "every
+    // document in the collection, every time anyone attaches" cost. Use
+    // XF.getLast / XF.getDmMessages for a bounded one-time read of
+    // existing history instead.
+    onNewSince(path, sinceTs, cb) {
+      const r = _resolve(path);
+      if (!r || r.kind !== 'list') throw new Error(`[XF] onNewSince requires a list path: ${path}`);
+      const key = `${path}::newSince::${++_listenerSeq}`;
+      const unsub = r.fsColl.where('createdAt', '>', sinceTs).onSnapshot(qs => {
+        qs.docChanges().forEach(change => {
+          if (change.type === 'added') cb({ key: change.doc.id, val: () => change.doc.data() });
+        });
+      }, err => console.error(`[XF] onNewSince(${path}) failed:`, err));
+      _listeners.set(key, unsub);
+      return () => { unsub(); _listeners.delete(key); };
     },
 
     offAll() {

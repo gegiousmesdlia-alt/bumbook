@@ -17,5 +17,11 @@
         { "key": "Access-Control-Allow-Origin", "value": "*" }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cleanup-expired-requests",
+      "schedule": "0 9 * * *"
+    }
   ]
 }
