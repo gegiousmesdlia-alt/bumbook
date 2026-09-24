@@ -221,7 +221,7 @@ function detectFirstUrl(text) {
 async function fetchLinkPreview(url) {
   if (!url) return null;
   try {
-    const res = await fetch('/api/link-preview?url=' + encodeURIComponent(url));
+    const res = await fetch(API_BASE + '/api/link-preview?url=' + encodeURIComponent(url));
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || (!data.title && !data.image)) return null;

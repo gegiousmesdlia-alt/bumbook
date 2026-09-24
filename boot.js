@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.XFire._reattach && window.XFire._reattach();
     }
 
-    // "Continue with Bluesky" hands off here: bsky-oauth-callback.js
+    // "Continue with Bluesky" hands off here: the callback action in bsky-auth.js
     // can't sign the browser in directly (it's a server-side redirect
     // responding to Bluesky, with no access to this tab's Firebase SDK
     // instance) — instead it mints a short-lived custom token and

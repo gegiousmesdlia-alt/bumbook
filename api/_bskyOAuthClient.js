@@ -1,6 +1,7 @@
-/* api/_bskyOAuthClient.js — shared by bsky-connect-start.js and
- * bsky-oauth-callback.js (and later bsky-send-message.js). Filename
- * starts with "_" so Vercel does NOT turn this into its own route —
+/* api/_bskyOAuthClient.js — shared by the connect-start, disconnect,
+ * login-start, and callback actions in api/bsky-auth.js (and later
+ * bsky-send-message.js). Filename starts with "_" so Vercel does NOT
+ * turn this into its own route —
  * confirmed via Vercel's own docs: files starting with "_" inside /api
  * are skipped and never become functions.
  *
@@ -88,7 +89,7 @@ async function getBskyOAuthClient() {
         client_id: CLIENT_ID,
         client_name: 'Bum Book',
         client_uri: 'https://bumbook.vercel.app',
-        redirect_uris: ['https://bumbook.vercel.app/api/bsky-oauth-callback'],
+        redirect_uris: ['https://bumbook.vercel.app/api/bsky-auth?action=callback'],
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
         application_type: 'web',

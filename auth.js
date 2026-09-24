@@ -51,9 +51,9 @@ async function handleGoogleAuth() {
 
 /* "Continue with Bluesky" — asks for a handle, then redirects to
    Bluesky's own login/consent page (same OAuth mechanics as Settings'
-   "Connect Bluesky", but via bsky-login-start.js instead of
-   bsky-connect-start.js, and with no bumbook session required — see
-   that file's header and bsky-oauth-callback.js for how the two are
+   "Connect Bluesky", but via bsky-auth.js's login-start action instead of
+   its connect-start action, and with no bumbook session required — see
+   that file's header and the callback action for how the two are
    told apart on the way back). */
 function handleBskyAuth() {
   const existing = document.getElementById('bskyLoginModal');
@@ -88,7 +88,7 @@ async function _submitBskyLogin() {
   handle = handle.replace(/^@/, '');
   if (handle && !handle.includes('.')) handle += '.bsky.social';
   try {
-    const resp = await fetch('/api/bsky-login-start', {
+    const resp = await fetch(API_BASE + '/api/bsky-auth?action=login-start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }, // no Authorization — no session exists yet
       body: JSON.stringify({ handle })

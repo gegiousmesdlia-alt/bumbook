@@ -306,7 +306,7 @@ async function sendPushNow(targetUid, title, body, url) {
   if (!currentUser) return;
   try {
     const idToken = await currentUser.getIdToken();
-    fetch('/api/send-push-now', {
+    fetch(API_BASE + '/api/send-push-now', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, targetUid, title, body, url }),
