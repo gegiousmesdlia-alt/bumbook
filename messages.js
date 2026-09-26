@@ -8,16 +8,35 @@
    This file owns only the open DM chat view:
 
    _dmMsgCache  — Map(msgId → msgObj) for the active conversation only.
-                  Populated by child_added (last 100) + child_changed + child_removed.
-                  Never re-fetched. Firebase pushes diffs.
+                  Two sources feed it, merged together for rendering:
+                   (1) a bounded LIVE listener on just the latest
+                       DM_LIVE_WINDOW messages (window.XF.onDmMessages) —
+                       wholesale-replaced on every fire, tracked via
+                       _dmLiveIds so a message that ages out of the top-N
+                       window (not deleted, just no longer "recent") gets
+                       dropped from the live-tracked set without touching
+                       anything loaded separately by (2);
+                   (2) one-shot OLDER pages fetched on scroll-up via
+                       _dmLoadOlderMessages (window.XF.getDmMessages),
+                       added once and left alone — not re-fetched, not
+                       live-updated, same trade-off the feed already
+                       makes for older posts.
+                  This replaced an earlier version that live-listened to
+                  the ENTIRE message history of every conversation, which
+                  meant opening one old, active conversation could cost
+                  thousands of Firestore reads every single time.
    _dmDoRender  — reads _dmMsgCache, sorts, builds HTML. Sync. No awaits.
-                  Debounced to 16ms so rapid child_added bursts = 1 paint.
+                  Debounced to 16ms so rapid live-window bursts = 1 paint.
 ═══════════════════════════════════════════════════════════════════════════ */
+const DM_LIVE_WINDOW = 50; // messages kept live-synced; older ones load on scroll-up
 
 let _dmPartner    = null;
 let _dmTypingOff  = null;
 let _dmPresenceOff = null;
 let _dmTypingTimer = null;
+let _dmLiveIds        = new Set();  // ids currently owned by the live-window listener
+let _dmHasMoreOlder   = true;       // false once a "load older" page comes back short
+let _dmLoadingOlder   = false;      // re-entrancy guard for scroll-triggered loads
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PRESENCE — writes presence/{uid}, which _dmStartListeners already reads.
@@ -98,6 +117,9 @@ function _dmTeardown() {
     window.XF.db.ref('typing/' + cid + '/' + currentUser.uid).set(false).catch(()=>{});
   }
   _dmMsgCache.clear();
+  _dmLiveIds      = new Set();
+  _dmHasMoreOlder = true;
+  _dmLoadingOlder = false;
   removeComposerPreview('dmLinkPreview');
   _dmPartner   = null;
   _dmReplyMsg  = null;
@@ -186,6 +208,9 @@ function _dmWireComposer(uid) {
   const fileInput = $('dmFileInput');
   if (fileInput) { fileInput.value = ''; fileInput.onchange = () => pickDmFile(fileInput); }
 
+  const msgEl = $('dmMessages');
+  if (msgEl) msgEl.addEventListener('scroll', _dmMessagesScrollHandler, { passive: true });
+
   const emojiBtn = $('dmEmojiBtn');
   if (emojiBtn) emojiBtn.onclick = e => { e.stopPropagation(); dmToggleEmoji(); };
 
@@ -226,20 +251,25 @@ function _renderTypingBubble(isTyping) {
 }
 
 function _dmStartListeners(uid, convId) {
-  const dmPath   = 'dms/' + convId;
   const typPath  = 'typing/' + convId + '/' + uid;
   const presPath = 'presence/' + uid;
 
   _dmPartnerPresence = null;
   _dmPartnerTyping   = false;
+  _dmLiveIds      = new Set();
+  _dmHasMoreOlder = true;
+  _dmLoadingOlder = false;
 
-  // Merged live listener: combines old RTDB messages + new Firestore
-  // messages into one snapshot each time either source changes, then we
-  // rebuild the cache wholesale (simpler and just as fast as incremental
-  // child events for a conversation-sized message list).
-  const dmUnsub = window.XF.on(dmPath, snap => {
+  // Bounded live listener: only the latest DM_LIVE_WINDOW messages, not
+  // the whole conversation history — see this file's header for why.
+  // Diff against the previous live-window id set so a message aging out
+  // of the window (superseded by newer ones) is dropped from the cache,
+  // without touching anything loaded separately via "load older".
+  const dmUnsub = window.XF.onDmMessages(convId, DM_LIVE_WINDOW, snap => {
     const data = snap.val() || {};
-    _dmMsgCache.clear();
+    const newIds = new Set(Object.keys(data));
+    _dmLiveIds.forEach(id => { if (!newIds.has(id)) _dmMsgCache.delete(id); });
+    _dmLiveIds = newIds;
     Object.entries(data).forEach(([key, val]) => _dmMsgCache.set(key, { id: key, ...val }));
     _dmRender(uid, convId);
   });
@@ -295,11 +325,61 @@ function _dmDoRender(uid, convId) {
   }
 
   const wasAtBottom = msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 120;
-  msgEl.innerHTML = _buildMsgsHTML(msgs, uid, convId);
+  const topSentinel = _dmHasMoreOlder
+    ? '<div class="dm-load-older" id="dmLoadOlder"></div>' // empty until scroll-triggered; also the scroll-position anchor for _dmLoadOlderMessages
+    : '<div class="dm-load-older dm-load-older-end" id="dmLoadOlder">Beginning of conversation</div>';
+  msgEl.innerHTML = topSentinel + _buildMsgsHTML(msgs, uid, convId);
   if (wasAtBottom) msgEl.scrollTop = msgEl.scrollHeight;
 
   setTimeout(() => { if (activeConvUid === uid) _markRead(convId); }, 800);
   setTimeout(() => { if (activeConvUid === uid) _markDelivered(convId); }, 100);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOAD OLDER — triggered by scrolling near the top of the thread. Fetches
+   one bounded page further back (window.XF.getDmMessages) and preserves
+   scroll position so the view doesn't jump while older messages are
+   prepended above what's currently visible — same technique the feed
+   uses for "load more" on scroll.
+═══════════════════════════════════════════════════════════════════════════ */
+function _dmMessagesScrollHandler() {
+  const msgEl = $('dmMessages'); if (!msgEl || !activeConvUid || !currentUser) return;
+  if (msgEl.scrollTop < 80) _dmLoadOlderMessages(activeConvUid);
+}
+
+async function _dmLoadOlderMessages(uid) {
+  if (_dmLoadingOlder || !_dmHasMoreOlder || !currentUser) return;
+  const convId = [currentUser.uid, uid].sort().join('_');
+  const msgs = [..._dmMsgCache.values()];
+  const oldestTs = msgs.length ? Math.min(...msgs.map(m => m.createdAt || Date.now())) : Date.now();
+
+  _dmLoadingOlder = true;
+  const msgEl = $('dmMessages');
+  const sentinel = $('dmLoadOlder');
+  if (sentinel) sentinel.textContent = 'Loading earlier messages…'; // immediate feedback — the fetch below is async, and _dmDoRender only fires once it resolves
+  const prevScrollHeight = msgEl ? msgEl.scrollHeight : 0;
+  const prevScrollTop = msgEl ? msgEl.scrollTop : 0;
+
+  try {
+    const snap = await window.XF.getDmMessages(convId, DM_LIVE_WINDOW, oldestTs);
+    const older = snap.exists() ? snap.val() : {};
+    const keys = Object.keys(older);
+    if (keys.length < DM_LIVE_WINDOW) _dmHasMoreOlder = false;
+    keys.forEach(k => { if (!_dmMsgCache.has(k)) _dmMsgCache.set(k, { id: k, ...older[k] }); });
+    if (keys.length) {
+      _dmDoRender(uid, convId); // sync, not debounced — need scroll fixed up immediately after
+      if (msgEl) msgEl.scrollTop = msgEl.scrollHeight - prevScrollHeight + prevScrollTop;
+    } else if (sentinel) {
+      // Nothing further back — flip the sentinel to its end-state text
+      // directly rather than a full re-render, since there's no new
+      // content to fix scroll position for.
+      sentinel.textContent = 'Beginning of conversation';
+      sentinel.classList.add('dm-load-older-end');
+    }
+  } catch (e) {
+  } finally {
+    _dmLoadingOlder = false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

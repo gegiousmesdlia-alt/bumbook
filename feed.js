@@ -135,7 +135,7 @@ function forYouTrayHTML(videos) {
 
 async function _fetchSuggestedGroups(count) {
   try {
-    const snap = await window.XF.get('groups');
+    const snap = await window.XF.getLimited('groups', 300); // capped — see firebase.js's getLimited header
     if (!snap.exists()) return [];
     const mine = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
     const groups = [];

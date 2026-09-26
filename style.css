@@ -3004,6 +3004,11 @@ body.theme-light .dm-bubble.them { background: #e4e9f0; color: #0f1923; }
 body.theme-light .dm-bubble.me { background: linear-gradient(135deg,#1d9bf0,#1565c0); color:#fff; }
 
 .dm-text { display: block; }
+.dm-load-older {
+  text-align: center; font-size: 0.78rem; color: var(--text-dim);
+  padding: 8px 0; min-height: 1px; /* min-height keeps it as a stable scroll anchor even when empty */
+}
+.dm-load-older-end { opacity: 0.6; }
 .dm-file-bubble {
   display: flex; align-items: center; gap: 10px;
   max-width: 260px; padding: 10px 12px; margin-bottom: 4px;

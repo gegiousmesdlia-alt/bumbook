@@ -44,7 +44,7 @@ async function renderGroupsPage() {
 
   try {
     const [snap, suggestions] = await Promise.all([
-      window.XF.get('groups'),
+      window.XF.getLimited('groups', 300), // capped — see firebase.js's getLimited header
       (typeof _fetchSuggestedGroups === 'function') ? _fetchSuggestedGroups(10) : Promise.resolve([])
     ]);
     const groups = [];
@@ -355,9 +355,12 @@ async function _renderGroupPosts() {
   }
 
   try {
-    const snap = await window.XF.get('posts');
+    // Same fix as profile.js's post loading: bounded query filtered
+    // server-side by groupId, instead of reading every post on the
+    // platform just to keep the ones in this group.
+    const snap = await window.XF.fs.collection('posts').where('groupId', '==', _activeGroup.id).limit(50).get();
     const posts = [];
-    if (snap.exists()) snap.forEach(c => { const p = { id: c.key, ...c.val() }; if (p.groupId === _activeGroup.id) posts.push(p); });
+    snap.forEach(d => posts.push({ id: d.id, ...d.data() }));
     posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     const uids = [...new Set(posts.map(p => p.authorUid).filter(Boolean))];

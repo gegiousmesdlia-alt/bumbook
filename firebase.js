@@ -205,7 +205,7 @@ async function loadFirebase() {
     onAuth:        (cb)      => _auth.onAuthStateChanged(cb),
     signIn:        (e, p)    => _auth.signInWithEmailAndPassword(e, p),
     signUp:        (e, p)    => _auth.createUserWithEmailAndPassword(e, p),
-    signOut:       ()        => { window.XF.offAll(); return _auth.signOut(); },
+    signOut:       ()        => { const _u = _auth.currentUser?.uid; if (_u) _stopPresence(_u); window.XF.offAll(); return _auth.signOut(); },
     resetPw:       (e)       => _auth.sendPasswordResetEmail(e),
     googleAuth:    ()        => _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()),
     register:      (e, p)    => _auth.createUserWithEmailAndPassword(e, p),
@@ -233,6 +233,21 @@ async function loadFirebase() {
       return new FakeSnapshot(val, false);
     },
 
+    // Bounded read for a list-type path, capped at `limit` — for
+    // collections that can grow large where the caller genuinely wants
+    // "up to N of these", not literally every document that exists
+    // (unlike get(), which for a list path reads the WHOLE collection
+    // every time, however big it's grown). Same FakeSnapshot shape as
+    // get(), so callers using it need no other changes.
+    async getLimited(path, limit) {
+      const r = _resolve(path);
+      if (!r || r.kind !== 'list') throw new Error(`[XF] getLimited requires a list path: ${path}`);
+      const qs = await r.fsColl.limit(limit).get();
+      const merged = {};
+      qs.forEach(d => { merged[d.id] = d.data(); });
+      return new FakeSnapshot(merged, true);
+    },
+
     async getLast(path, n = 1) {
       const r = _resolve(path);
       if (!r || r.kind !== 'list') throw new Error(`[XF] getLast requires a list path: ${path}`);
@@ -254,10 +269,37 @@ async function loadFirebase() {
       return new FakeSnapshot(merged, true);
     },
 
+    // Bounded live listener for the LATEST N documents (ordered desc),
+    // instead of on()'s "the whole collection, no matter how large"
+    // behaviour. Firestore bills the initial snapshot as one read per
+    // matching document (so `limit` reads at most, not "every message
+    // ever sent"), and each later fire only bills for what actually
+    // changed within that window. As newer documents arrive, older ones
+    // fall out of the window automatically — that's by design for a
+    // "recent activity" view; see getDmMessages below for loading
+    // further back on demand (pagination / "load older").
+    onDmMessages(convId, limit, cb) {
+      const key = `dms/${convId}::live::${++_listenerSeq}`;
+      const unsub = _fs.collection('conversations').doc(convId).collection('messages')
+        .orderBy('createdAt', 'desc').limit(limit)
+        .onSnapshot(qs => {
+          const merged = {};
+          qs.forEach(d => { merged[d.id] = d.data(); });
+          cb(new FakeSnapshot(merged, true));
+        }, err => console.error(`[XF] onDmMessages(${convId}) failed:`, err));
+      _listeners.set(key, unsub);
+      return () => { unsub(); _listeners.delete(key); };
+    },
+
     /* ── DM pagination ───────────────────────────────────────────────── */
-    async getDmMessages(convId, limit = 100) {
-      const qs = await _fs.collection('conversations').doc(convId).collection('messages')
-        .orderBy('createdAt', 'desc').limit(limit).get();
+    // beforeTs: pass the oldest createdAt currently loaded to fetch the
+    // NEXT page further back ("load older" on scroll-up). Omit it for
+    // the first page. Same field for both the range filter and orderBy,
+    // so this needs no manual composite index in Firebase Console.
+    async getDmMessages(convId, limit = 50, beforeTs) {
+      let q = _fs.collection('conversations').doc(convId).collection('messages').orderBy('createdAt', 'desc');
+      if (beforeTs) q = q.where('createdAt', '<', beforeTs);
+      const qs = await q.limit(limit).get();
       const merged = {};
       qs.forEach(d => { merged[d.id] = d.data(); });
       return new FakeSnapshot(merged, true);
@@ -406,5 +448,51 @@ window.XFire = {
     _auth = firebase.auth();
     _rtdb = firebase.database();
     _fs   = firebase.firestore();
+    // window.XF's db/auth/fs were bound to the OLD instances at the
+    // moment window.XF was first built — reassigning the module-level
+    // _auth/_rtdb/_fs variables above does NOT update those already-set
+    // object properties. Without this, every typing/presence read+write
+    // (and anything else going through window.XF.db/.auth/.fs directly)
+    // would silently keep talking to a defunct connection after a
+    // reattach (e.g. a bfcache-restored tab), with no error — it would
+    // just quietly stop working.
+    if (window.XF) { window.XF.db = _rtdb; window.XF.auth = _auth; window.XF.fs = _fs; }
   }
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRESENCE — "online" / "last seen", via the standard Firebase Realtime
+   Database pattern (.info/connected + onDisconnect()). auth.js's
+   onAuthChange has been calling `_initPresence(user.uid)` on every
+   sign-in for a while — it was just never actually defined anywhere,
+   so that call silently no-op'd (it's guarded with a typeof check) and
+   online/last-seen never had anything to display, for anyone, ever.
+   ─────────────────────────────────────────────────────────────────────────
+   Why RTDB specifically: onDisconnect() has no Firestore equivalent —
+   it's the Realtime Database SERVER itself noticing the dropped
+   connection and writing the "offline" state, which is what makes this
+   work even when the tab is killed or the network just drops, with no
+   client-side JS left running to do it manually.
+═══════════════════════════════════════════════════════════════════════════ */
+function _initPresence(uid) {
+  if (!_rtdb || !uid) return;
+  const myPresenceRef = _rtdb.ref('presence/' + uid);
+  const connectedRef  = _rtdb.ref('.info/connected');
+  connectedRef.on('value', snap => {
+    // .info/connected fires once immediately with `false` before the real
+    // connection comes up — only act once it's actually true.
+    if (snap.val() !== true) return;
+    myPresenceRef.onDisconnect()
+      .set({ online: false, lastSeen: firebase.database.ServerValue.TIMESTAMP })
+      .then(() => myPresenceRef.set({ online: true, lastSeen: firebase.database.ServerValue.TIMESTAMP }))
+      .catch(() => {});
+  });
+}
+
+// Explicit "Sign Out" click (tab stays open) doesn't drop the connection,
+// so onDisconnect() alone never fires for it — mark offline immediately
+// here instead. Wired into window.XF.signOut() below.
+function _stopPresence(uid) {
+  if (!_rtdb || !uid) return;
+  try { _rtdb.ref('presence/' + uid).set({ online: false, lastSeen: firebase.database.ServerValue.TIMESTAMP }); } catch (e) {}
+}

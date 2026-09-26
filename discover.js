@@ -99,13 +99,27 @@ async function _searchDiscoverPeople(q) {
       matches.push(p);
     });
     if (!matches.length) return [];
-    const [myConnSnap, reqSnap] = await Promise.all([
+    const shortlist = matches.slice(0, 8);
+    // connectionRequests doc IDs are always exactly `${senderUid}_${recipientUid}`
+    // (see _getConnStatus/_getIncomingReqId below) — so rather than reading
+    // the ENTIRE connectionRequests collection just to look up a handful of
+    // specific pairs, fetch exactly the up-to-16 documents that could
+    // possibly matter (2 per shortlisted person: the "I sent them one" key
+    // and "they sent me one" key), by ID, directly. window.XF.get() for a
+    // single doc doesn't hand back the doc's own ID on the snapshot, so we
+    // track each key ourselves and zip it back up after Promise.all.
+    const reqKeys = currentUser ? shortlist.flatMap(p => [
+      currentUser.uid + '_' + p.uid,
+      p.uid + '_' + currentUser.uid,
+    ]) : [];
+    const [myConnSnap, ...reqSnaps] = await Promise.all([
       currentUser ? window.XF.get('connections/' + currentUser.uid) : Promise.resolve(null),
-      currentUser ? window.XF.get('connectionRequests') : Promise.resolve(null)
+      ...reqKeys.map(k => window.XF.get('connectionRequests/' + k).catch(() => null))
     ]);
     const myConns = myConnSnap?.exists() ? myConnSnap.val() : {};
-    const allReqs = reqSnap?.exists() ? reqSnap.val() : {};
-    return matches.slice(0, 8).map(p => {
+    const allReqs = {};
+    reqKeys.forEach((k, i) => { if (reqSnaps[i]?.exists()) allReqs[k] = reqSnaps[i].val(); });
+    return shortlist.map(p => {
       const status = _getConnStatus(p.uid, myConns, allReqs);
       const incomingReqId = _getIncomingReqId(p.uid, allReqs);
       return `<div class="people-card" onclick="openUserProfile('${p.uid}',event)">
@@ -198,7 +212,7 @@ async function _searchDiscoverVideos(q) {
    groups show for anyone and can be joined right from the result. */
 async function _searchDiscoverGroups(q) {
   try {
-    const snap = await window.XF.get('groups');
+    const snap = await window.XF.getLimited('groups', 300); // capped — see firebase.js's getLimited header
     const groups = [];
     if (snap.exists()) snap.forEach(c => groups.push({ id: c.key, ...c.val() }));
     const mine = (typeof myGroupIds === 'function') ? myGroupIds() : new Set();
