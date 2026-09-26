@@ -86,14 +86,17 @@ async function _searchDiscoverPeopleAndBsky(q) {
 
 async function _searchDiscoverPeople(q) {
   try {
-    const snap = await window.XF.get('users');
-    const blockedUids = await getBlockedUids();
+    // Same fix as searchUsers() in this file: bounded handle-prefix query
+    // instead of reading the entire users collection per search.
     const lower = q.toLowerCase();
+    const blockedUids = await getBlockedUids();
     const matches = [];
-    if (snap.exists()) snap.forEach(c => {
-      const p = c.val();
+    const snap = await window.XF.fs.collection('users')
+      .orderBy('handle').startAt(lower).endAt(lower + '\uf8ff').limit(20).get();
+    snap.forEach(d => {
+      const p = d.data();
       if (p.uid === currentUser?.uid || blockedUids.has(p.uid)) return;
-      if ((p.displayName || '').toLowerCase().includes(lower) || (p.handle || '').toLowerCase().includes(lower)) matches.push(p);
+      matches.push(p);
     });
     if (!matches.length) return [];
     const [myConnSnap, reqSnap] = await Promise.all([
@@ -408,15 +411,25 @@ async function isBlocked(uid) {
 async function searchUsers(query) {
   const containers = [$('searchResults'), $('sidebarSearchResults')].filter(Boolean);
   if (!query || query.length < 2) { containers.forEach(c => c.innerHTML = ''); return; }
-  const snap = await window.XF.get('users');
+  // Bounded prefix query on `handle` (always stored lowercase — see
+  // auth.js's registration flow) instead of reading every user document
+  // and filtering client-side. This costs at most 20 reads per search
+  // no matter how many users exist, versus one full-collection read per
+  // keystroke before.
+  // Trade-off: this only matches the START of someone's @handle now, not
+  // a substring anywhere in their display name like the old code did.
+  // Handle-prefix covers most real searches; matching on display name
+  // too would need a normalized lowercase name field added to every
+  // user doc (happy to add that as a follow-up if you want name search
+  // back — it can still be done as a second bounded query, no full scan
+  // required).
+  const q = query.toLowerCase();
   const results = [];
-  if (snap.exists()) {
-    snap.forEach(c => {
-      const p = c.val(); if (p.uid === currentUser?.uid) return;
-      const q = query.toLowerCase();
-      if ((p.displayName || '').toLowerCase().includes(q) || (p.handle || '').toLowerCase().includes(q)) results.push(p);
-    });
-  }
+  try {
+    const snap = await window.XF.fs.collection('users')
+      .orderBy('handle').startAt(q).endAt(q + '\uf8ff').limit(20).get();
+    snap.forEach(d => { const p = d.data(); if (p.uid !== currentUser?.uid) results.push(p); });
+  } catch (e) {}
   const html = results.slice(0, 8).map(p =>
     `<div class="people-card" onclick="openUserProfile('${p.uid}',event)">${avatarHTML(p, 'sm')}<div class="people-card-info"><div class="people-card-name">${escapeHTML(p.displayName || 'Member')}${verifiedBadge(p.verified)}</div><div class="people-card-handle">@${escapeHTML(p.handle || 'member')}</div></div></div>`
   ).join('');

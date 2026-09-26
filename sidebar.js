@@ -29,8 +29,20 @@ async function callGroq({ system, user, maxTokens = 1024 }) {
 async function loadSuggested() {
   const c = $('suggestedMembers'); if (!c || !window.XF) return;
   try {
-    const snap = await window.XF.get('users'); const people = [];
-    if (snap.exists()) snap.forEach(s => { if (s.key !== currentUser?.uid) people.push(s.val()); });
+    // Two small bounded queries instead of reading the WHOLE users
+    // collection on every single page load. With thousands of accounts
+    // (seeded test users included), that one call alone was costing
+    // thousands of Firestore reads per page view against the free
+    // tier's 50K/day cap — this costs exactly 10 reads, always, no
+    // matter how many users exist. Firestore auto-indexes single-field
+    // equality filters like this, so no manual index setup is needed.
+    const [verifiedSnap, otherSnap] = await Promise.all([
+      window.XF.fs.collection('users').where('verified', '==', true).limit(5).get(),
+      window.XF.fs.collection('users').where('verified', '==', false).limit(5).get(),
+    ]);
+    const people = [];
+    verifiedSnap.forEach(d => { if (d.id !== currentUser?.uid) people.push(d.data()); });
+    otherSnap.forEach(d => { if (d.id !== currentUser?.uid) people.push(d.data()); });
     const shown = people.filter(p => p.verified).slice(0, 3).concat(people.filter(p => !p.verified).slice(0, 2)).slice(0, 4);
     if (shown.length === 0) { c.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem">No members yet</div>'; return; }
     c.innerHTML = shown.map(p => `<div class="sidebar-item" onclick="openUserProfile('${p.uid}',event)" style="display:flex;align-items:center;gap:10px">${avatarHTML(p, 'sm')}<div style="min-width:0;flex:1"><div style="font-weight:700;font-size:0.88rem;display:flex;align-items:center;gap:3px">${escapeHTML(p.displayName || 'Member')}${verifiedBadge(p.verified)}</div><div style="color:var(--text-dim);font-size:0.78rem">@${escapeHTML(p.handle || 'member')}</div></div>${p.uid !== currentUser?.uid ? `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();sendConnectionRequest('${p.uid}')" style="font-size:0.75rem;padding:4px 10px">Connect</button>` : ''}</div>`).join('');

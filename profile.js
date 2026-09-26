@@ -7,8 +7,17 @@
 async function renderOwnProfile() {
   if (!currentUser || !currentProfile) { showPage('login'); return; }
   const container = $('ownProfileContent'); if (!container) return;
-  const postsSnap = await window.XF.get('posts'); const posts = [];
-  if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === currentUser.uid) posts.push({ id: c.key, ...p }); });
+  // Bounded query filtered server-side by authorUid, instead of reading
+  // every post on the platform just to keep the ones by this author.
+  // No orderBy here deliberately — combining where() + orderBy() on a
+  // different field requires a manual composite index in Firebase
+  // Console; sorting the (already small, capped) result client-side
+  // avoids that setup step at the cost of only ever showing this
+  // author's most recent ~50 posts rather than true infinite pagination.
+  const postsSnap = await window.XF.fs.collection('posts').where('authorUid', '==', currentUser.uid).limit(50).get();
+  const posts = [];
+  postsSnap.forEach(d => posts.push({ id: d.id, ...d.data() }));
+  posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const mergedItems = await _mergeProfileBskyItems(posts, currentProfile);
   const followersVisible = !currentProfile.followersHidden;
   container.innerHTML = `
@@ -262,8 +271,12 @@ async function renderUserProfile(uid) {
         if (mrSnap.exists()) hasSentMsgReq = true;
       }
     }
-    const postsSnap = await window.XF.get('posts'); const posts = [];
-    if (postsSnap.exists()) postsSnap.forEach(c => { const p = c.val(); if (p.authorUid === uid) posts.push({ id: c.key, ...p }); });
+    // Same fix as renderOwnProfile() above: bounded query by authorUid
+    // instead of reading every post on the platform.
+    const postsSnap = await window.XF.fs.collection('posts').where('authorUid', '==', uid).limit(50).get();
+    const posts = [];
+    postsSnap.forEach(d => posts.push({ id: d.id, ...d.data() }));
+    posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const mergedItems = await _mergeProfileBskyItems(posts, profile);
     const followersHidden = profile.followersHidden && uid !== currentUser?.uid;
     container.innerHTML = `

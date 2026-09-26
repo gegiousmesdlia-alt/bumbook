@@ -366,7 +366,7 @@ function _rebuildConvUI() {
   });
 
   container.innerHTML = rows.map(({ uid, profile: p, latest, unread, ts }) => {
-    const preview   = latest ? ((latest.imageUrl || latest.imageUrls) ? 'Photo' : String(latest.text || '').slice(0, 50)) : 'Say hello!';
+    const preview   = latest ? ((latest.imageUrl || latest.imageUrls) ? 'Photo' : latest.fileName ? ('📎 ' + latest.fileName) : String(latest.text || '').slice(0, 50)) : 'Say hello!';
     const timeStr   = ts > 0 ? timeAgo(ts) : '';
     const hasUnread = unread > 0;
     return `<div class="conv-row${hasUnread ? ' conv-row-unread' : ''}" onclick="openDMWith('${uid}')">

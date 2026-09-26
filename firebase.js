@@ -29,7 +29,7 @@ const FIREBASE_CONFIG = {
   appId:             '1:599534793874:web:9cb7a3f0843fd8b13a624b'
 };
 
-let _auth, _rtdb, _fs;
+let _auth, _rtdb, _fs, _storage;
 
 /* ═══════════════════════════════════════════════════════════════════════
    FakeSnapshot — mimics the old RTDB DataSnapshot API (.exists/.val/
@@ -158,11 +158,48 @@ async function loadFirebase() {
   _auth = firebase.auth();
   _rtdb = firebase.database(); // typing/presence only — see file header
   _fs   = firebase.firestore();
+  // Storage is optional: only DM file-sharing uses it (see uploadFile below).
+  // If firebase-storage-compat.js wasn't loaded on this page (e.g. a page
+  // that never sends files), skip it rather than throwing on init.
+  _storage = firebase.storage ? firebase.storage() : null;
 
   window.XF = {
     auth: _auth,
     db:   _rtdb,   // raw handle, used directly for typing/presence only
     fs:   _fs,
+
+    /* ── Files (DM attachments, Firebase Storage — separate free quota
+       from both Firestore ops and Cloudinary's image budget: 5GB stored,
+       1GB/day downloaded, no billing account required on the Spark plan)
+       ──────────────────────────────────────────────────────────────────
+       Files are NOT compressed (unlike cloudinary.js's image pipeline) —
+       callers must enforce their own size cap before calling this ( DM
+       file sharing in messages.js caps at 10MB per file). Stored under
+       dm-files/{uploaderUid}/{timestamp}_{filename} so storage.rules can
+       scope write access to "your own uploads" without needing a
+       Firestore lookup (which would cost a Firestore read on every
+       upload — see storage.rules' header for why). Read access is
+       intentionally open to any signed-in user, same trust model
+       Cloudinary images already use: the URL itself isn't guessable,
+       and the app only ever hands it to conversation participants. */
+    async uploadFile(file, onProgress = () => {}) {
+      if (!_storage) throw new Error('[XF] Firebase Storage SDK not loaded on this page');
+      const uid = _auth.currentUser && _auth.currentUser.uid;
+      if (!uid) throw new Error('[XF] uploadFile requires a signed-in user');
+      const safeName = String(file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100);
+      const path = `dm-files/${uid}/${Date.now()}_${safeName}`;
+      const ref = _storage.ref(path);
+      const task = ref.put(file, { contentType: file.type || 'application/octet-stream' });
+      await new Promise((resolve, reject) => {
+        task.on('state_changed',
+          snap => onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          reject,
+          resolve
+        );
+      });
+      const url = await task.snapshot.ref.getDownloadURL();
+      return { url, name: file.name || 'file', size: file.size, type: file.type || 'application/octet-stream', path };
+    },
 
     /* ── Auth ──────────────────────────────────────────────────────────── */
     onAuth:        (cb)      => _auth.onAuthStateChanged(cb),

@@ -1,0 +1,38 @@
+rules_version = '2';
+
+/* storage.rules — governs Firebase Storage (separate from firestore.rules,
+ * which governs Firestore, and database.rules.json, which governs
+ * Realtime Database — three independent rule sets on three independent
+ * products/quotas).
+ *
+ * Currently only DM file attachments use Storage (see firebase.js's
+ * uploadFile). Files live at dm-files/{uploaderUid}/{filename}.
+ *
+ * Write access is scoped to "your own uploads only" by checking the uid
+ * segment of the path against request.auth.uid — deliberately NOT a
+ * Firestore lookup to verify the two people are actually in a
+ * conversation together, because Storage rules CAN call
+ * firestore.get(), but every such call costs a real Firestore read,
+ * which defeats the entire point of moving files off Firestore's quota
+ * in the first place.
+ *
+ * Read access is intentionally open to any signed-in user rather than
+ * scoped to conversation participants, for the same reason. This matches
+ * the trust model cloudinary.js's image uploads already use: a Cloudinary
+ * URL is just a public, unguessable link with no access control of its
+ * own either — the app enforces privacy by only ever handing the URL to
+ * conversation participants through the UI, not by gating the file
+ * itself. This is not a new weaker trust model, just the same one
+ * already in place for photos.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /dm-files/{uploaderUid}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uploaderUid
+                   && request.resource.size < 10 * 1024 * 1024; // 10MB — mirrors messages.js's DM_FILE_MAX_BYTES; keep both in sync if that ever changes
+    }
+    // Everything else stays default-deny.
+  }
+}

@@ -188,8 +188,19 @@ async function _resolveHandle(session, fallback) {
 // login — same DID always maps to the same bumbook uid, so a reverse
 // lookup failing to find bskyConnections (e.g. it was somehow deleted)
 // doesn't create a second duplicate account for the same person.
+//
+// No underscore in this prefix — deliberately. DM conversation IDs are
+// built elsewhere in the app as [uidA, uidB].sort().join('_'), and both
+// the Firestore security rules and scripts/backfill-conversation-
+// summaries.js split that ID back apart on '_' to recover the two
+// participant uids. A uid containing its own underscore breaks that
+// split into the wrong pieces, silently fails the security rule's
+// hasAny() check, and makes every write to that conversation's summary
+// doc (lastMessage/unread — see messages.js's _dmNotifyRecipient) fail
+// permission-denied, forever, for any conversation involving that
+// account — with no visible error, since that call is fire-and-forget.
 function _uidForDid(did) {
-  return 'bsky_' + crypto.createHash('sha256').update(did).digest('hex').slice(0, 32);
+  return 'bsky' + crypto.createHash('sha256').update(did).digest('hex').slice(0, 32);
 }
 
 async function _uniqueHandleFrom(rawHandle) {

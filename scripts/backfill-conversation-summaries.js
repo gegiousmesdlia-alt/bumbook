@@ -90,6 +90,7 @@ async function main() {
       text: m.text,
       imageUrl: m.imageUrl,
       imageUrls: m.imageUrls,
+      fileName: m.fileName,
     });
   });
 
@@ -103,10 +104,11 @@ async function main() {
     const unreadFor = uid => messages.filter(m => m.senderUid !== uid && !m.readBy[uid]).length;
 
     const lastMessage = latest ? {
-      text: (latest.imageUrl || latest.imageUrls) ? '' : (latest.text || ''),
+      text: (latest.imageUrl || latest.imageUrls || latest.fileName) ? '' : (latest.text || ''),
       senderUid: latest.senderUid,
       createdAt: latest.createdAt,
       ...(latest.imageUrl || latest.imageUrls ? { imageUrls: true } : {}),
+      ...(latest.fileName ? { fileName: latest.fileName } : {}),
     } : null;
 
     await db.collection('conversations').doc(convId).set({

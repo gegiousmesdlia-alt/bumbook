@@ -183,6 +183,8 @@ function _dmWireComposer(uid) {
   const previewEl = $('dmImgPreview'); if (previewEl) previewEl.innerHTML = '';
   const imgInput = $('dmImgInput');
   if (imgInput) { imgInput.value = ''; imgInput.onchange = () => previewDmImages(imgInput); }
+  const fileInput = $('dmFileInput');
+  if (fileInput) { fileInput.value = ''; fileInput.onchange = () => pickDmFile(fileInput); }
 
   const emojiBtn = $('dmEmojiBtn');
   if (emojiBtn) emojiBtn.onclick = e => { e.stopPropagation(); dmToggleEmoji(); };
@@ -323,7 +325,7 @@ function _buildMsgsHTML(msgs, uid, convId) {
     if (m.replyTo) {
       replyHTML = `<div class="dm-reply-preview-bubble" onclick="dmScrollTo('${m.replyTo.id}')">
         <div class="dm-reply-name">${escapeHTML(m.replyTo.senderName || '')}</div>
-        <div class="dm-reply-text">${(m.replyTo.imageUrl || m.replyTo.imageUrls) ? 'Photo' : escapeHTML((m.replyTo.text||'').slice(0,50))}</div>
+        <div class="dm-reply-text">${(m.replyTo.imageUrl || m.replyTo.imageUrls) ? 'Photo' : m.replyTo.fileName ? ('📎 ' + escapeHTML(m.replyTo.fileName)) : escapeHTML((m.replyTo.text||'').slice(0,50))}</div>
       </div>`;
     }
 
@@ -335,6 +337,10 @@ function _buildMsgsHTML(msgs, uid, convId) {
         `<img src="${escapeHTML(u)}" class="dm-img-bubble dm-img-gallery-item" onclick="openLightbox('${escapeHTML(u)}')" loading="lazy">`
       ).join('') + '</div>';
     } else if (m.imageUrl) content += `<img src="${escapeHTML(m.imageUrl)}" class="dm-img-bubble" onclick="openLightbox('${escapeHTML(m.imageUrl)}')" loading="lazy">`;
+    else if (m.fileUrl) content += `<a href="${escapeHTML(m.fileUrl)}" target="_blank" rel="noopener" class="dm-file-bubble">
+        <span class="dm-file-icon">📎</span>
+        <span class="dm-file-info"><span class="dm-file-name">${escapeHTML(m.fileName || 'File')}</span><span class="dm-file-size">${_formatFileSize(m.fileSize || 0)}</span></span>
+      </a>`;
     if (m.text)     content += `<span class="dm-text">${escapeHTML(m.text)}</span>`;
     if (m.linkPreview) content += linkPreviewCardHTML(m.linkPreview);
 
@@ -428,13 +434,15 @@ async function dmReply(cid, mid) {
   const m = _dmMsgCache.get(mid); if (!m) return;
   _dmReplyMsg = {
     id: mid, text: m.text || '', imageUrl: m.imageUrl || '', imageUrls: m.imageUrls || null,
+    fileName: m.fileName || '',
     senderName: m.senderUid === currentUser.uid ? 'You' : (_dmPartner?.displayName || 'Member')
   };
   const bar = $('dmReplyBar');
   if (bar) {
     bar.style.display = 'flex';
     const prev = bar.querySelector('.dm-reply-preview');
-    if (prev) prev.innerHTML = `<strong>${escapeHTML(_dmReplyMsg.senderName)}</strong><br><span>${(_dmReplyMsg.imageUrl || _dmReplyMsg.imageUrls) ? 'Photo' : escapeHTML(_dmReplyMsg.text.slice(0,60))}</span>`;
+    const previewText = (_dmReplyMsg.imageUrl || _dmReplyMsg.imageUrls) ? 'Photo' : _dmReplyMsg.fileName ? ('📎 ' + escapeHTML(_dmReplyMsg.fileName)) : escapeHTML(_dmReplyMsg.text.slice(0,60));
+    if (prev) prev.innerHTML = `<strong>${escapeHTML(_dmReplyMsg.senderName)}</strong><br><span>${previewText}</span>`;
   }
   $('dmInput')?.focus();
 }
@@ -654,6 +662,61 @@ async function dmSendPendingImages(uid) {
     await window.XF.push('dms/' + cid, msg);
     _dmNotifyRecipient(uid, files.length > 1 ? `${files.length} photos` : 'Photo');
   } catch (e) { showToast('Image upload failed'); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FILES — any file type, one at a time (unlike images there's no gallery
+   grouping), uploaded to Firebase Storage rather than Cloudinary (see
+   firebase.js's uploadFile header for why: separate free quota, no
+   compression needed to keep it under budget). Capped client-side at
+   10MB — Storage's free tier is generous (5GB) but uncompressed files
+   burn through it far faster than the aggressively-compressed images
+   cloudinary.js produces, so this cap exists to keep it comfortably free
+   rather than because of any hard platform limit.
+═══════════════════════════════════════════════════════════════════════════ */
+const DM_FILE_MAX_BYTES = 10 * 1024 * 1024; // 10MB
+
+function pickDmFile(input) {
+  if (!input?.files?.length) return;
+  const file = input.files[0];
+  input.value = ''; // allow re-selecting the same file
+  if (file.size > DM_FILE_MAX_BYTES) {
+    showToast('File too large — 10MB max');
+    return;
+  }
+  dmSendFile(file);
+}
+
+function _formatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
+  return bytes + ' B';
+}
+
+async function dmSendFile(file, uid) {
+  uid = uid || activeConvUid;
+  if (!uid || !currentUser || !file) return;
+
+  showToast('Uploading file…');
+  try {
+    const upload = await window.XF.uploadFile(file, pct => {
+      if (pct === 100) showToast('Finishing up…');
+    });
+    const cid = [currentUser.uid, uid].sort().join('_');
+    const msg = {
+      senderUid: currentUser.uid,
+      fileUrl: upload.url,
+      fileName: upload.name,
+      fileSize: upload.size,
+      fileType: upload.type,
+      text: '',
+      createdAt: Date.now(),
+      readBy: { [currentUser.uid]: true }
+    };
+    if (_dmReplyMsg) { msg.replyTo = { ..._dmReplyMsg }; cancelReply(); }
+    await window.XF.push('dms/' + cid, msg);
+    _dmNotifyRecipient(uid, `📎 ${upload.name}`);
+  } catch (e) { showToast('File upload failed'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
