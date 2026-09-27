@@ -117,14 +117,16 @@ async function xUploadFile(file, folder = 'dm_files', onProgress = () => {}) {
   fd.append('upload_preset', CLOUDINARY.uploadPreset);
   fd.append('folder',        folder);
   fd.append('tags',          'xclub_file');
-  // NOT sending use_filename/unique_filename — this preset's unsigned-
-  // upload allowlist rejects them outright ("Use filename parameter is
-  // not allowed when using unsigned upload"). Not a problem: Cloudinary
-  // will just generate a random public_id instead of one based on the
-  // original filename, which is fine here — the app already stores the
-  // real filename separately in the message doc (msg.fileName) for
-  // display, so nothing downstream actually depends on Cloudinary's own
-  // generated ID matching it.
+  // Explicit public_id INCLUDING the original extension — public_id is on
+  // this preset's allowed-params list for unsigned uploads (unlike
+  // use_filename/unique_filename, which aren't — see the removed lines
+  // this replaced). Raw resources need the extension to be part of the
+  // stored id itself for Cloudinary to serve/label them correctly; without
+  // it, delivery still "succeeds" but with no recognizable file type,
+  // which is exactly what showed up as a broken "?" icon for a .zip.
+  const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name || '');
+  const ext = extMatch ? extMatch[0].toLowerCase() : '';
+  fd.append('public_id', `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
   onProgress(5);
   const res = await uploadWithProgress(
     `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/raw/upload`,
