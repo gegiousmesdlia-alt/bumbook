@@ -137,7 +137,17 @@ function uploadWithProgress(url, formData, onPct) {
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('Invalid response from Cloudinary')); }
-      } else { reject(new Error(`Cloudinary ${xhr.status} — upload failed`)); }
+        return;
+      }
+      // Cloudinary's error responses are JSON with a specific reason at
+      // error.message (e.g. "Upload preset must be whitelisted for
+      // unsigned uploads" or "Invalid resource_type") — parse it out
+      // instead of just reporting the bare status code, since the
+      // specific reason is exactly what's needed to fix a misconfigured
+      // preset, and guessing blind from "400" alone isn't enough.
+      let detail = '';
+      try { detail = JSON.parse(xhr.responseText)?.error?.message || ''; } catch {}
+      reject(new Error(`Cloudinary ${xhr.status}${detail ? ' — ' + detail : ' — upload failed'}`));
     });
     xhr.addEventListener('error',  () => reject(new Error('Network error during upload')));
     xhr.addEventListener('abort',  () => reject(new Error('Upload was cancelled')));
