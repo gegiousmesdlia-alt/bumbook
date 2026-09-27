@@ -448,8 +448,9 @@ function _buildMsgsHTML(msgs, uid, convId) {
     html += `<div class="dm-wrap${isMe?' me':' them'}" id="dmm-${m.id}"
       data-mid="${m.id}" data-cid="${convId}" data-me="${isMe?1:0}"
       oncontextmenu="dmCtxMenu(event,this)"
-      ontouchstart="dmHoldStart(event,this)" ontouchend="dmHoldEnd()" ontouchmove="dmHoldEnd()">
+      ontouchstart="dmTouchStart(event,this)" ontouchmove="dmTouchMove(event,this)" ontouchend="dmTouchEnd(event,this)" ontouchcancel="dmTouchEnd(event,this)">
       ${!isMe ? `<div class="dm-avatar">${avatarHTML(_dmPartner,'sm')}</div>` : ''}
+      <div class="dm-swipe-reply-icon">↩</div>
       <div class="dm-col">
         ${replyHTML}
         <div class="dm-bubble${isMe?' me':' them'}">
@@ -464,17 +465,82 @@ function _buildMsgsHTML(msgs, uid, convId) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CONTEXT MENU
+   TOUCH: swipe-to-reply (drag right, WhatsApp/Telegram-style) + long-press
+   context menu, unified into one handler set since both start from the
+   same touchstart and need to tell each other apart as the gesture
+   develops — a plain touchstart timer (the old approach) can't do that:
+   it has no way to know a real swipe is happening until it's too late,
+   so it would pop the context menu open mid-swipe.
 ═══════════════════════════════════════════════════════════════════════════ */
+const DM_SWIPE_TRIGGER_PX = 56; // drag distance (right) that counts as "reply"
+const DM_SWIPE_MAX_PX     = 74; // visual cap — bubble stops following the finger past this
 let _dmHoldTimer = null;
-function dmHoldStart(e, el) { _dmHoldTimer = setTimeout(() => dmCtxMenu(e, el), 500); }
-function dmHoldEnd()        { clearTimeout(_dmHoldTimer); }
+let _dmSwipe = null; // { el, col, startX, startY, moved, armed }
+
+function dmTouchStart(e, el) {
+  const t = e.touches[0];
+  _dmSwipe = { el, col: el.querySelector('.dm-col'), startX: t.clientX, startY: t.clientY, moved: false, armed: false };
+  el.classList.add('dm-bubble-pressing'); // subtle scale-down while held — see .dm-bubble-pressing in style.css for why this exists instead of the menu just snapping into view with no feedback at all
+  _dmHoldTimer = setTimeout(() => {
+    if (!_dmSwipe || _dmSwipe.moved) return; // a real swipe took over — don't also open the menu
+    el.classList.remove('dm-bubble-pressing');
+    if (navigator.vibrate) navigator.vibrate(10);
+    dmCtxMenu(e, el);
+  }, 500);
+}
+
+function dmTouchMove(e, el) {
+  if (!_dmSwipe) return;
+  const t = e.touches[0];
+  const dx = t.clientX - _dmSwipe.startX;
+  const dy = t.clientY - _dmSwipe.startY;
+
+  if (!_dmSwipe.moved) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; // still deciding — could just be a tap
+    _dmSwipe.moved = true;
+    clearTimeout(_dmHoldTimer);
+    el.classList.remove('dm-bubble-pressing');
+  }
+
+  // Only a rightward, mostly-horizontal drag counts as swipe-to-reply —
+  // anything more vertical is the person scrolling the thread, which
+  // must keep working normally (not get eaten by this handler).
+  if (Math.abs(dx) <= Math.abs(dy) || dx <= 0) return;
+  e.preventDefault(); // we're taking over this gesture from page scroll now
+  const drag = Math.min(dx, DM_SWIPE_MAX_PX);
+  if (_dmSwipe.col) { _dmSwipe.col.style.transition = 'none'; _dmSwipe.col.style.transform = `translateX(${drag}px)`; }
+  const icon = el.querySelector('.dm-swipe-reply-icon');
+  if (icon) icon.style.opacity = Math.min(drag / DM_SWIPE_TRIGGER_PX, 1);
+
+  const nowArmed = drag >= DM_SWIPE_TRIGGER_PX;
+  if (nowArmed !== _dmSwipe.armed) {
+    _dmSwipe.armed = nowArmed;
+    if (nowArmed && navigator.vibrate) navigator.vibrate(8); // crossing the trigger threshold gets its own tick, same as iOS/WhatsApp's swipe-to-reply
+    if (icon) icon.classList.toggle('armed', nowArmed);
+  }
+}
+
+function dmTouchEnd(e, el) {
+  clearTimeout(_dmHoldTimer);
+  el.classList.remove('dm-bubble-pressing');
+  if (!_dmSwipe) return;
+  const { col, armed, moved } = _dmSwipe;
+  if (col) { col.style.transition = 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'; col.style.transform = ''; }
+  const icon = el.querySelector('.dm-swipe-reply-icon');
+  if (icon) { icon.style.opacity = ''; icon.classList.remove('armed'); }
+  if (moved && armed) {
+    const mid = el.dataset.mid, cid = el.dataset.cid;
+    if (mid && cid) dmReply(cid, mid);
+  }
+  _dmSwipe = null;
+}
 
 function dmCtxMenu(e, el) {
   e.preventDefault(); e.stopPropagation();
   document.querySelectorAll('.dm-ctx').forEach(m => m.remove());
+  el.classList.add('dm-bubble-selected');
   const mid = el.dataset.mid, cid = el.dataset.cid, isMe = el.dataset.me === '1';
-  if (!mid || !cid) return;
+  if (!mid || !cid) { el.classList.remove('dm-bubble-selected'); return; }
 
   const menu = document.createElement('div');
   menu.className = 'dm-ctx';
@@ -487,11 +553,64 @@ function dmCtxMenu(e, el) {
     <div class="dm-ctx-item" onclick="dmCopy('${mid}')">📋 Copy</div>
     ${isMe ? `<div class="dm-ctx-item danger" onclick="dmDelete('${cid}','${mid}')">🗑 Delete</div>` : ''}`;
 
+  // Position within the ACTUAL visible area, not window.innerHeight/innerWidth.
+  // Those reflect the full layout viewport, which on iOS Safari does NOT
+  // shrink when the keyboard opens — the keyboard just overlays part of
+  // it. A position:fixed element placed using innerHeight can end up
+  // computed as "on screen" while actually sitting behind the keyboard,
+  // which is exactly why this menu appeared to vanish until the keyboard
+  // closed. window.visualViewport tracks the real visible region and
+  // shrinks correctly when the keyboard is up.
+  const vv = window.visualViewport;
+  const vpW = vv ? vv.width  : window.innerWidth;
+  const vpH = vv ? vv.height : window.innerHeight;
+  const vpL = vv ? vv.offsetLeft : 0;
+  const vpT = vv ? vv.offsetTop  : 0;
+
   const rect = el.getBoundingClientRect();
-  const top  = Math.min(rect.bottom + 4, window.innerHeight - 200);
-  const fromRight = rect.left > window.innerWidth / 2;
-  menu.style.cssText = `position:fixed;top:${top}px;${fromRight ? 'right:'+(window.innerWidth-rect.right)+'px' : 'left:'+Math.max(8,rect.left)+'px'};z-index:9999`;
+  const menuH = 216; // approx: reactions row + 4 items — good enough for clamping, doesn't need to be exact
+  let top = rect.bottom + 4;
+  const maxTop = vpT + vpH - menuH - 8;
+  if (top > maxTop) top = Math.max(vpT + 8, rect.top - menuH - 4); // no room below — flip above the bubble instead
+  top = Math.min(Math.max(top, vpT + 8), maxTop);
+
+  const fromRight = rect.left > vpL + vpW / 2;
+  const rightPos = vpL + vpW - rect.right;
+  const leftPos  = Math.max(vpL + 8, rect.left);
+  menu.style.cssText = `position:fixed;top:${top}px;${fromRight ? 'right:'+rightPos+'px' : 'left:'+leftPos+'px'};z-index:9999`;
   document.body.appendChild(menu);
+  const cleanup = () => { menu.remove(); el.classList.remove('dm-bubble-selected'); document.removeEventListener('click', h); };
+  const h = () => cleanup();
+  setTimeout(() => document.addEventListener('click', h, { once: true }), 50);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ATTACH MENU — small-screen "+" toggle (see .dm-attach-toggle in
+   style.css). Same pop-in animation and dismiss-on-outside-click pattern
+   as dmCtxMenu above, just anchored to the toggle button instead of a
+   message bubble.
+═══════════════════════════════════════════════════════════════════════════ */
+function toggleAttachMenu(e) {
+  e.preventDefault(); e.stopPropagation();
+  const existing = document.querySelector('.dm-attach-menu');
+  if (existing) { existing.remove(); return; } // tap again to close
+
+  const btn = $('dmAttachToggle'); if (!btn) return;
+  const menu = document.createElement('div');
+  menu.className = 'dm-attach-menu';
+  menu.innerHTML = `
+    <div class="dm-attach-menu-item" id="dmAttachPhoto">🖼️ Photo</div>
+    <div class="dm-attach-menu-item" id="dmAttachFile">📎 File</div>`;
+
+  const vv = window.visualViewport;
+  const rect = btn.getBoundingClientRect();
+  const rightEdge = vv ? vv.offsetLeft + vv.width : window.innerWidth;
+  const rightPos = Math.max(8, rightEdge - rect.right);
+  menu.style.cssText = `position:fixed;bottom:${window.innerHeight - rect.top + 8}px;right:${rightPos}px;z-index:9999`;
+  document.body.appendChild(menu);
+
+  $('dmAttachPhoto').onclick = () => { menu.remove(); $('dmImgInput')?.click(); };
+  $('dmAttachFile').onclick  = () => { menu.remove(); $('dmFileInput')?.click(); };
   setTimeout(() => document.addEventListener('click', function h(){ menu.remove(); document.removeEventListener('click',h); }, { once:true }), 50);
 }
 
@@ -777,11 +896,24 @@ async function dmSendFile(file, uid) {
   uid = uid || activeConvUid;
   if (!uid || !currentUser || !file) return;
 
-  showToast('Uploading file…');
+  // Persistent (not auto-dismissing) toast with live progress, plus a
+  // hard timeout — the earlier version showed a plain 3-second toast
+  // that vanished on its own regardless of whether the upload was still
+  // going, stuck, or had failed silently, which is exactly why it looked
+  // like "says Uploading, then nothing happens" even when something WAS
+  // actually going wrong underneath. Now failure and success both end
+  // with a clear, explicit message that replaces the progress toast.
+  const toast = showToast('Uploading 0%…', { persistent: true });
+  const UPLOAD_TIMEOUT_MS = 30000;
+
   try {
-    const upload = await window.XF.uploadFile(file, pct => {
-      if (pct === 100) showToast('Finishing up…');
-    });
+    const upload = await Promise.race([
+      window.XF.uploadFile(file, pct => { if (toast) toast.update(`Uploading ${pct}%…`); }),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('Timed out — check your connection, and that Firebase Storage is set up (see storage.rules)')),
+        UPLOAD_TIMEOUT_MS
+      ))
+    ]);
     const cid = [currentUser.uid, uid].sort().join('_');
     const msg = {
       senderUid: currentUser.uid,
@@ -796,7 +928,12 @@ async function dmSendFile(file, uid) {
     if (_dmReplyMsg) { msg.replyTo = { ..._dmReplyMsg }; cancelReply(); }
     await window.XF.push('dms/' + cid, msg);
     _dmNotifyRecipient(uid, `📎 ${upload.name}`);
-  } catch (e) { showToast('File upload failed'); }
+    if (toast) toast.dismiss();
+  } catch (e) {
+    console.error('[dmSendFile] upload failed:', e);
+    if (toast) toast.dismiss();
+    showToast('File upload failed — ' + (e?.message || 'try again'), { duration: 5000 });
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

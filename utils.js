@@ -30,10 +30,24 @@ function verifiedBadge(v, lg = false) {
 }
 
 /* ─── TOAST ─── */
-function showToast(msg) {
-  const c = $('toastContainer'); if (!c) return;
+function showToast(msg, opts = {}) {
+  const c = $('toastContainer'); if (!c) return null;
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; c.appendChild(t);
-  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 3000);
+  // Persistent toasts (opts.persistent) don't auto-dismiss after 3s — for
+  // anything with real duration (a file upload, say), a fixed 3s toast
+  // just vanishes on its own timer regardless of whether the thing it
+  // was reporting on actually finished, leaving no visible sign of
+  // success or failure once it's gone. Callers that need one get back a
+  // handle to update its text (progress %) and dismiss it explicitly
+  // once the real outcome is known.
+  if (opts.persistent) {
+    return {
+      update: (newMsg) => { t.textContent = newMsg; },
+      dismiss: () => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }
+    };
+  }
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, opts.duration || 3000);
+  return null;
 }
 
 /* ─── HTML ESCAPE ─── */

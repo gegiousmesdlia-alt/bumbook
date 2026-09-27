@@ -3249,6 +3249,14 @@ body.theme-light .dm-file-bubble { background: rgba(0,0,0,0.06); }
   background: var(--bg-2); border: 1px solid var(--border);
   border-radius: 12px; overflow: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5); min-width: 180px;
+  /* Pop in with a slight overshoot instead of just snapping into
+     existence — a tap-and-hold is a deliberate, physical-feeling
+     gesture, and a menu that just *appears* with no motion reads as
+     cheap/broken next to that. transform-origin below makes it scale
+     outward from wherever it's anchored (near the pressed bubble)
+     rather than from its own top-left corner. */
+  animation: dmCtxPopIn 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: top left;
 }
 .dm-ctx-reacts {
   display: flex; gap: 4px; padding: 10px 12px 8px;
@@ -3483,3 +3491,70 @@ body.theme-light .dm-file-bubble { background: rgba(0,0,0,0.06); }
   display: flex; align-items: center; justify-content: center;
 }
 .link-preview-remove:hover { background: rgba(0,0,0,0.8); }
+
+/* ── DM composer: small-screen fix ──────────────────────────────────────
+   min-width: 0 lets the flex-basis text input actually shrink below its
+   default intrinsic width — without it, flexbox's default min-width:auto
+   on a text input fights against flex:1, so adding a 4th icon button
+   (file-attach, alongside emoji/photo/send) pushed the row's total
+   intrinsic width past the container on narrower phones (iPhone 14 Pro
+   and similar ~390-430px widths), with nowhere to shrink — the send
+   button, last in the row, got pushed off-screen as a result.
+   Below 430px, the two individual photo/file buttons collapse into one
+   "+" toggle (see toggleAttachMenu in messages.js) that pops up a small
+   menu offering both, so the composer only ever has 4 items wide
+   regardless of screen size. ─────────────────────────────────────────── */
+.dm-input { min-width: 0; }
+.dm-attach-toggle { display: none; }
+@media (max-width: 430px) {
+  .dm-attach-individual { display: none; }
+  .dm-attach-toggle { display: flex; }
+}
+
+.dm-attach-menu {
+  position: fixed; z-index: 9999; min-width: 160px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  padding: 6px; overflow: hidden;
+  /* Same pop-in motion as the message long-press menu (.dm-ctx) — see its
+     rule for why this exists instead of the menu just snapping into
+     view. */
+  animation: dmCtxPopIn 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dm-attach-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 0.9rem; color: var(--text);
+}
+.dm-attach-menu-item:active { background: var(--bg-3); }
+
+/* ── Long-press motion + swipe-to-reply ──────────────────────────────────
+   dm-bubble-pressing: brief scale-down the instant a touch starts on a
+   bubble, so holding it feels like pressing something physical rather
+   than the context menu just teleporting in 500ms later with no warning.
+   dm-bubble-selected: while the context menu is open, a subtle lift +
+   dim-background on the row it belongs to, so it's visually obvious
+   which message the menu's actions apply to. */
+.dm-wrap { transition: background-color 0.15s; border-radius: 10px; }
+.dm-wrap .dm-bubble { transition: transform 0.12s ease; }
+.dm-wrap.dm-bubble-pressing .dm-bubble { transform: scale(0.97); }
+.dm-wrap.dm-bubble-selected { background: rgba(127,127,127,0.12); }
+
+@keyframes dmCtxPopIn {
+  from { opacity: 0; transform: scale(0.85) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Swipe-to-reply icon — sits behind .dm-col, revealed as it slides right.
+   Positioned via flex order in .dm-wrap rather than absolute positioning,
+   since .dm-wrap already lays its children out with flexbox (avatar +
+   this + .dm-col) — this icon just starts hidden behind .dm-col until
+   the drag exposes it. */
+.dm-wrap { position: relative; }
+.dm-swipe-reply-icon {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+  font-size: 1.1rem; opacity: 0; color: var(--text-dim);
+  pointer-events: none; transition: opacity 0.1s linear;
+}
+.dm-wrap.them .dm-swipe-reply-icon { left: 44px; } /* clear the avatar */
+.dm-swipe-reply-icon.armed { color: var(--accent); }
