@@ -417,7 +417,7 @@ function _buildMsgsHTML(msgs, uid, convId) {
         `<img src="${escapeHTML(u)}" class="dm-img-bubble dm-img-gallery-item" onclick="openLightbox('${escapeHTML(u)}')" loading="lazy">`
       ).join('') + '</div>';
     } else if (m.imageUrl) content += `<img src="${escapeHTML(m.imageUrl)}" class="dm-img-bubble" onclick="openLightbox('${escapeHTML(m.imageUrl)}')" loading="lazy">`;
-    else if (m.fileUrl) content += `<a href="${escapeHTML(m.fileUrl)}" target="_blank" rel="noopener" class="dm-file-bubble">
+    else if (m.fileUrl) content += `<a href="${escapeHTML(_cloudinaryDownloadUrl(m.fileUrl, m.fileName))}" target="_blank" rel="noopener" download="${escapeHTML(m.fileName || 'file')}" class="dm-file-bubble">
         <span class="dm-file-icon">📎</span>
         <span class="dm-file-info"><span class="dm-file-name">${escapeHTML(m.fileName || 'File')}</span><span class="dm-file-size">${_formatFileSize(m.fileSize || 0)}</span></span>
       </a>`;
@@ -887,6 +887,19 @@ function pickDmFile(input) {
     return;
   }
   dmSendFile(file);
+}
+
+// Forces the browser to download with the ORIGINAL filename (correct
+// extension included) rather than whatever random name Cloudinary gave
+// the underlying blob (see xUploadFile's header in cloudinary.js for
+// why it's random). Plain HTML `download="..."` attributes are ignored
+// by browsers for cross-origin links like this one — Cloudinary's own
+// fl_attachment URL transformation is what actually makes this work,
+// by having Cloudinary itself send the right Content-Disposition header.
+function _cloudinaryDownloadUrl(url, filename) {
+  if (!url || !url.includes('/upload/')) return url;
+  const safe = encodeURIComponent(filename || 'file').replace(/%2F/g, '_');
+  return url.replace('/upload/', `/upload/fl_attachment:${safe}/`);
 }
 
 function _formatFileSize(bytes) {

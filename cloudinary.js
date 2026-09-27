@@ -113,12 +113,18 @@ async function _compressOnce(file, maxW, maxH, quality) {
 async function xUploadFile(file, folder = 'dm_files', onProgress = () => {}) {
   if (!file) throw new Error('No file provided.');
   const fd = new FormData();
-  fd.append('file',            file);
-  fd.append('upload_preset',   CLOUDINARY.uploadPreset);
-  fd.append('folder',          folder);
-  fd.append('tags',            'xclub_file');
-  fd.append('use_filename',    'true');
-  fd.append('unique_filename', 'true');
+  fd.append('file',          file);
+  fd.append('upload_preset', CLOUDINARY.uploadPreset);
+  fd.append('folder',        folder);
+  fd.append('tags',          'xclub_file');
+  // NOT sending use_filename/unique_filename — this preset's unsigned-
+  // upload allowlist rejects them outright ("Use filename parameter is
+  // not allowed when using unsigned upload"). Not a problem: Cloudinary
+  // will just generate a random public_id instead of one based on the
+  // original filename, which is fine here — the app already stores the
+  // real filename separately in the message doc (msg.fileName) for
+  // display, so nothing downstream actually depends on Cloudinary's own
+  // generated ID matching it.
   onProgress(5);
   const res = await uploadWithProgress(
     `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/raw/upload`,
