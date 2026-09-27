@@ -3512,7 +3512,8 @@ body.theme-light .dm-file-bubble { background: rgba(0,0,0,0.06); }
 }
 
 .dm-attach-menu {
-  position: fixed; z-index: 9999; min-width: 160px;
+  position: absolute; bottom: 100%; left: 16px; margin-bottom: 8px;
+  z-index: 9999; min-width: 160px;
   background: var(--bg-2); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
   padding: 6px; overflow: hidden;
@@ -3520,6 +3521,7 @@ body.theme-light .dm-file-bubble { background: rgba(0,0,0,0.06); }
      rule for why this exists instead of the menu just snapping into
      view. */
   animation: dmCtxPopIn 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom left;
 }
 .dm-attach-menu-item {
   display: flex; align-items: center; gap: 10px;
@@ -3558,3 +3560,46 @@ body.theme-light .dm-file-bubble { background: rgba(0,0,0,0.06); }
 }
 .dm-wrap.them .dm-swipe-reply-icon { left: 44px; } /* clear the avatar */
 .dm-swipe-reply-icon.armed { color: var(--accent); }
+
+/* ── DM upload progress banner ────────────────────────────────────────── */
+.dm-upload-banner {
+  position: absolute; left: 8px; right: 8px; bottom: 100%; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+}
+.dm-upload-banner.visible { opacity: 1; transform: translateY(0); }
+
+.dm-upload-spinner {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%;
+  border: 2.5px solid var(--border); border-top-color: var(--accent);
+  animation: dmUploadSpin 0.7s linear infinite;
+}
+@keyframes dmUploadSpin { to { transform: rotate(360deg); } }
+
+.dm-upload-check {
+  display: none; width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%;
+  background: #17bf63; color: #fff; font-size: 0.72rem; font-weight: 700;
+  align-items: center; justify-content: center;
+}
+.dm-upload-banner.success .dm-upload-spinner { display: none; }
+.dm-upload-banner.success .dm-upload-check { display: flex; }
+.dm-upload-banner.fail .dm-upload-spinner { border-top-color: var(--danger); animation: none; }
+
+.dm-upload-info { flex: 1; min-width: 0; }
+.dm-upload-label {
+  font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 5px;
+}
+.dm-upload-banner.fail .dm-upload-label { color: var(--danger); white-space: normal; }
+.dm-upload-bar { height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.dm-upload-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), #1d9bf0);
+  transition: width 0.25s ease;
+}
+.dm-upload-banner.success .dm-upload-bar-fill { background: #17bf63; }
+.dm-upload-banner.fail .dm-upload-bar-fill { background: var(--danger); }

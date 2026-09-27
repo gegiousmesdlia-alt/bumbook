@@ -50,8 +50,26 @@ module.exports = async (req, res) => {
     const subsSnap = await db.collection('pushSubscriptions').where('uid', '==', targetUid).get();
     if (subsSnap.empty) { res.status(200).json({ sent: 0, reason: 'recipient has no active subscriptions' }); return; }
 
+    // De-dupe by endpoint URL before sending — a push subscription's
+    // endpoint uniquely identifies "this browser install", so two
+    // Firestore docs with the same endpoint are the same actual device,
+    // just recorded twice (e.g. a stale doc from a previous session that
+    // was never cleaned up client-side — see push.js's
+    // _silentlyRefreshPushSubscription). Sending to both means one
+    // message shows up as two notifications on that one device. This is
+    // a safety net independent of whatever's creating the duplicate on
+    // the client, so it also covers duplicates from any other cause
+    // (e.g. two tabs refreshing the subscription at once).
+    const seenEndpoints = new Set();
+    const uniqueDocs = subsSnap.docs.filter(doc => {
+      const ep = doc.data()?.subscription?.endpoint;
+      if (!ep || seenEndpoints.has(ep)) return false;
+      seenEndpoints.add(ep);
+      return true;
+    });
+
     let sentCount = 0;
-    await Promise.all(subsSnap.docs.map(async (doc) => {
+    await Promise.all(uniqueDocs.map(async (doc) => {
       try {
         await webpush.sendNotification(
           doc.data().subscription,

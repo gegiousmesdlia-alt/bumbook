@@ -195,6 +195,23 @@ function showNotificationReenableModal() {
 }
 
 
+/* Deletes every existing pushSubscriptions doc for this user before a new
+   one is created — without this, every login/refresh created ANOTHER
+   doc and never removed the previous one, so a device that had logged
+   in on N separate occasions had N subscription records all pointing at
+   (usually) the same browser, and every message triggered N separate
+   notifications. Bounded by uid (see discover.js/profile.js/etc. for
+   the broader pattern of avoiding full-collection scans) — a single
+   user's own subscription count should only ever be a handful, so this
+   is cheap regardless. */
+async function _clearOldPushSubscriptions(uid) {
+  try {
+    const snap = await window.XF.fs.collection('pushSubscriptions').where('uid', '==', uid).get();
+    await Promise.all(snap.docs.map(d => d.ref.delete().catch(() => {})));
+  } catch (e) {}
+  localStorage.removeItem('xclub_push_sub_id');
+}
+
 /* Silently re-subscribes on load if push was previously enabled, without
    any toast or user interaction — this is what actually repairs an
    already-stale subscription sitting in someone's browser (like the one
@@ -217,6 +234,7 @@ async function _silentlyRefreshPushSubscription() {
       userVisibleOnly: true,
       applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
+    await _clearOldPushSubscriptions(currentUser.uid);
     const ref = await window.XF.push('pushSubscriptions', {
       uid: currentUser.uid,
       subscription: JSON.parse(JSON.stringify(subscription)),
@@ -252,6 +270,7 @@ async function enablePushNotifications() {
       applicationServerKey: _urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
 
+    await _clearOldPushSubscriptions(currentUser.uid);
     const ref = await window.XF.push('pushSubscriptions', {
       uid: currentUser.uid,
       subscription: JSON.parse(JSON.stringify(subscription)),

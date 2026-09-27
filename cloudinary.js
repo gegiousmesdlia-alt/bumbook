@@ -96,6 +96,39 @@ async function _compressOnce(file, maxW, maxH, quality) {
   });
 }
 
+/* Raw (non-image) file upload — DM file-sharing. Unlike xUploadImage, no
+   compression step (these aren't images), and posts to Cloudinary's
+   /raw/upload endpoint rather than /image/upload — resource_type on
+   Cloudinary is determined by which endpoint you POST to, not a form
+   field. use_filename + unique_filename keep the original name/extension
+   (raw files need the extension in their public_id for correct
+   delivery/content-type) while avoiding collisions between uploads.
+   ─────────────────────────────────────────────────────────────────────
+   Free-plan caveat: Cloudinary blocks public delivery of PDF and ZIP
+   files by default for security reasons, even though the upload itself
+   succeeds — see Cloudinary dashboard → Settings → Security → "Allow
+   delivery of PDF and ZIP files". Without that enabled, a PDF/ZIP sent
+   here uploads fine but the recipient's download link 401s. Other raw
+   types (DOCX, TXT, etc.) aren't affected by this restriction. */
+async function xUploadFile(file, folder = 'dm_files', onProgress = () => {}) {
+  if (!file) throw new Error('No file provided.');
+  const fd = new FormData();
+  fd.append('file',            file);
+  fd.append('upload_preset',   CLOUDINARY.uploadPreset);
+  fd.append('folder',          folder);
+  fd.append('tags',            'xclub_file');
+  fd.append('use_filename',    'true');
+  fd.append('unique_filename', 'true');
+  onProgress(5);
+  const res = await uploadWithProgress(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/raw/upload`,
+    fd,
+    pct => onProgress(5 + Math.round(pct * 0.95))
+  );
+  onProgress(100);
+  return { url: res.secure_url, publicId: res.public_id, bytes: res.bytes, format: res.format };
+}
+
 function uploadWithProgress(url, formData, onPct) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -121,4 +154,4 @@ async function xDeleteImage(publicId) {
   console.warn('[XCloud] Client-side delete requires a signed API call.', publicId);
 }
 
-window.XCloud = { upload: xUploadImage, deleteImage: xDeleteImage, thumb: xThumb };
+window.XCloud = { upload: xUploadImage, uploadFile: xUploadFile, deleteImage: xDeleteImage, thumb: xThumb };

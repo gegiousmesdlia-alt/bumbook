@@ -595,19 +595,22 @@ function toggleAttachMenu(e) {
   const existing = document.querySelector('.dm-attach-menu');
   if (existing) { existing.remove(); return; } // tap again to close
 
-  const btn = $('dmAttachToggle'); if (!btn) return;
+  // Anchored with position:absolute inside .dm-composer-wrap (already
+  // position:relative) rather than position:fixed + getBoundingClientRect
+  // math against the viewport. The fixed+viewport-math version broke
+  // twice in a row from different causes (wrong anchor edge, then still
+  // misplaced) — anchoring directly to the composer's own box sidesteps
+  // that whole category of bug: "16px from the left edge of the
+  // composer, just above it" is fixed and known ahead of time, not
+  // measured at runtime, so there's nothing left to get wrong from
+  // viewport quirks, keyboard state, or iOS's containing-block behavior.
+  const wrap = document.querySelector('.dm-composer-wrap'); if (!wrap) return;
   const menu = document.createElement('div');
   menu.className = 'dm-attach-menu';
   menu.innerHTML = `
     <div class="dm-attach-menu-item" id="dmAttachPhoto">🖼️ Photo</div>
     <div class="dm-attach-menu-item" id="dmAttachFile">📎 File</div>`;
-
-  const vv = window.visualViewport;
-  const rect = btn.getBoundingClientRect();
-  const rightEdge = vv ? vv.offsetLeft + vv.width : window.innerWidth;
-  const rightPos = Math.max(8, rightEdge - rect.right);
-  menu.style.cssText = `position:fixed;bottom:${window.innerHeight - rect.top + 8}px;right:${rightPos}px;z-index:9999`;
-  document.body.appendChild(menu);
+  wrap.appendChild(menu);
 
   $('dmAttachPhoto').onclick = () => { menu.remove(); $('dmImgInput')?.click(); };
   $('dmAttachFile').onclick  = () => { menu.remove(); $('dmFileInput')?.click(); };
@@ -892,25 +895,61 @@ function _formatFileSize(bytes) {
   return bytes + ' B';
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   UPLOAD PROGRESS — an animated inline banner above the composer (spinner
+   + filling progress bar), replacing the earlier plain toast. Slides/fades
+   in on start, the bar fills smoothly as progress updates arrive, and it
+   morphs to a green check or red "failed" state before fading out —
+   rather than a static text pill that just changes its number.
+═══════════════════════════════════════════════════════════════════════════ */
+function _showUploadProgress(label) {
+  const wrap = document.querySelector('.dm-composer-wrap');
+  if (!wrap) return null;
+  document.querySelectorAll('.dm-upload-banner').forEach(b => b.remove());
+
+  const el = document.createElement('div');
+  el.className = 'dm-upload-banner';
+  el.innerHTML = `
+    <div class="dm-upload-spinner"></div>
+    <div class="dm-upload-check">✓</div>
+    <div class="dm-upload-info">
+      <div class="dm-upload-label">${escapeHTML(label)}</div>
+      <div class="dm-upload-bar"><div class="dm-upload-bar-fill"></div></div>
+    </div>`;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('visible')); // next frame, so the initial state actually paints before transitioning
+
+  return {
+    setProgress(pct) {
+      const fill = el.querySelector('.dm-upload-bar-fill');
+      if (fill) fill.style.width = Math.max(4, pct) + '%'; // never fully flat — a sliver of fill from the start reads as "started", not "stuck"
+    },
+    setLabel(text) { const l = el.querySelector('.dm-upload-label'); if (l) l.textContent = text; },
+    success() {
+      const fill = el.querySelector('.dm-upload-bar-fill'); if (fill) fill.style.width = '100%';
+      el.classList.add('success');
+      setTimeout(() => { el.classList.remove('visible'); setTimeout(() => el.remove(), 200); }, 700);
+    },
+    fail(msg) {
+      el.classList.add('fail');
+      this.setLabel(msg);
+      setTimeout(() => { el.classList.remove('visible'); setTimeout(() => el.remove(), 200); }, 3000);
+    },
+  };
+}
+
 async function dmSendFile(file, uid) {
   uid = uid || activeConvUid;
   if (!uid || !currentUser || !file) return;
 
-  // Persistent (not auto-dismissing) toast with live progress, plus a
-  // hard timeout — the earlier version showed a plain 3-second toast
-  // that vanished on its own regardless of whether the upload was still
-  // going, stuck, or had failed silently, which is exactly why it looked
-  // like "says Uploading, then nothing happens" even when something WAS
-  // actually going wrong underneath. Now failure and success both end
-  // with a clear, explicit message that replaces the progress toast.
-  const toast = showToast('Uploading 0%…', { persistent: true });
+  const progress = _showUploadProgress(`Uploading ${file.name || 'file'}…`);
   const UPLOAD_TIMEOUT_MS = 30000;
 
   try {
     const upload = await Promise.race([
-      window.XF.uploadFile(file, pct => { if (toast) toast.update(`Uploading ${pct}%…`); }),
+      window.XCloud.uploadFile(file, 'dm_files', pct => { if (progress) progress.setProgress(pct); }),
       new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Timed out — check your connection, and that Firebase Storage is set up (see storage.rules)')),
+        () => reject(new Error('Timed out — check your connection and try again')),
         UPLOAD_TIMEOUT_MS
       ))
     ]);
@@ -918,21 +957,26 @@ async function dmSendFile(file, uid) {
     const msg = {
       senderUid: currentUser.uid,
       fileUrl: upload.url,
-      fileName: upload.name,
-      fileSize: upload.size,
-      fileType: upload.type,
+      fileName: file.name || 'file',
+      fileSize: file.size,
+      fileType: file.type || 'application/octet-stream',
       text: '',
       createdAt: Date.now(),
       readBy: { [currentUser.uid]: true }
     };
     if (_dmReplyMsg) { msg.replyTo = { ..._dmReplyMsg }; cancelReply(); }
     await window.XF.push('dms/' + cid, msg);
-    _dmNotifyRecipient(uid, `📎 ${upload.name}`);
-    if (toast) toast.dismiss();
+    _dmNotifyRecipient(uid, `📎 ${msg.fileName}`);
+    if (progress) progress.success();
   } catch (e) {
     console.error('[dmSendFile] upload failed:', e);
-    if (toast) toast.dismiss();
-    showToast('File upload failed — ' + (e?.message || 'try again'), { duration: 5000 });
+    // A PDF/ZIP that uploads fine but won't later open for the recipient
+    // usually means Cloudinary's dashboard → Settings → Security →
+    // "Allow delivery of PDF and ZIP files" hasn't been enabled — that
+    // failure shows up on DOWNLOAD, not here on upload, so it can't be
+    // detected at this point; mentioning it here anyway since a failed
+    // upload and a blocked-delivery file can look similar to the sender.
+    if (progress) progress.fail('Upload failed — ' + (e?.message || 'try again'));
   }
 }
 
