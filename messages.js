@@ -417,7 +417,7 @@ function _buildMsgsHTML(msgs, uid, convId) {
         `<img src="${escapeHTML(u)}" class="dm-img-bubble dm-img-gallery-item" onclick="openLightbox('${escapeHTML(u)}')" loading="lazy">`
       ).join('') + '</div>';
     } else if (m.imageUrl) content += `<img src="${escapeHTML(m.imageUrl)}" class="dm-img-bubble" onclick="openLightbox('${escapeHTML(m.imageUrl)}')" loading="lazy">`;
-    else if (m.fileUrl) content += `<a href="${escapeHTML(_cloudinaryDownloadUrl(m.fileUrl, m.fileName))}" target="_blank" rel="noopener" download="${escapeHTML(m.fileName || 'file')}" class="dm-file-bubble">
+    else if (m.fileUrl) content += `<a href="javascript:void(0)" data-url="${escapeHTML(_cloudinaryDownloadUrl(m.fileUrl, m.fileName))}" data-name="${escapeHTML(m.fileName || 'file')}" onclick="_dmDownloadFile(this)" class="dm-file-bubble">
         <span class="dm-file-icon">📎</span>
         <span class="dm-file-info"><span class="dm-file-name">${escapeHTML(m.fileName || 'File')}</span><span class="dm-file-size">${_formatFileSize(m.fileSize || 0)}</span></span>
       </a>`;
@@ -900,6 +900,53 @@ function _cloudinaryDownloadUrl(url, filename) {
   if (!url || !url.includes('/upload/')) return url;
   const safe = encodeURIComponent(filename || 'file').replace(/%2F/g, '_');
   return url.replace('/upload/', `/upload/fl_attachment:${safe}/`);
+}
+
+// Fetches the file in the background and saves it via a same-origin
+// blob: URL, instead of navigating the whole page to Cloudinary's URL
+// first (which is what a plain <a href> would do, and is exactly the
+// "redirects to a broken-looking page" experience this replaced).
+// `download` on a blob: URL is honored by every browser, unlike on a
+// cross-origin URL like Cloudinary's, since same-origin/blob content
+// isn't subject to that restriction.
+// ─────────────────────────────────────────────────────────────────────
+// Known platform limit, not fixable from here: iOS Safari does not let
+// websites write a file to the device silently, full stop — Apple
+// requires SOME visible share/save UI for any web download, as a
+// security boundary the OS enforces, not something this app's code can
+// bypass. What this DOES fix: the download itself starts immediately
+// in the background with no page navigation, so at minimum the person
+// never leaves the chat and never sees a bare, unstyled browser tab.
+async function _dmDownloadFile(el) {
+  // Read from data- attributes rather than taking the values as inline
+  // onclick string arguments — escapeHTML doesn't escape apostrophes, so
+  // a filename like "John's report.zip" would have broken an inline
+  // '...' string literal and killed the click handler outright.
+  const url = el.dataset.url, filename = el.dataset.name || 'file';
+  const toast = showToast(`Downloading ${filename}…`, { persistent: true });
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl; a.download = filename || 'file';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    if (toast) toast.dismiss();
+  } catch (e) {
+    console.error('[_dmDownloadFile] failed:', e);
+    if (toast) toast.dismiss();
+    // Fall back to plain navigation rather than leaving the person with
+    // no way at all to get the file — worse UX than the blob path, but
+    // better than a dead end (e.g. if Cloudinary's CORS headers ever
+    // block a cross-origin fetch() for some reason, though normal public
+    // delivery URLs allow this).
+    showToast('Download failed, opening in browser instead', { duration: 4000 });
+    window.open(url, '_blank', 'noopener');
+  }
 }
 
 function _formatFileSize(bytes) {
